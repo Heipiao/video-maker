@@ -1,0 +1,3 @@
+Placeholder for a licensed music file.
+
+Production render jobs should replace this with an actual cleared audio asset.

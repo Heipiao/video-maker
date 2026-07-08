@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wedding HyperFrames"
+  short_description: "Generate wedding video render plans"
+  default_prompt: "Use $wedding-hyperframes to turn tagged wedding photos and story data into a HyperFrames render plan."

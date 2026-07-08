@@ -1,0 +1,26 @@
+{
+  "job_id": "smoke",
+  "spec": {
+    "title": "Wedding Video Smoke Test",
+    "duration_seconds": 4,
+    "aspect_ratio": "16:9",
+    "assets": [],
+    "music_asset_id": null,
+    "style": {
+      "primary_color": "#C9A86A",
+      "music_volume": 0.7
+    },
+    "timeline": [
+      {
+        "type": "title",
+        "duration_seconds": 2,
+        "text": "Wedding Video"
+      },
+      {
+        "type": "ending",
+        "duration_seconds": 2,
+        "text": "Remotion Render Ready"
+      }
+    ]
+  }
+}

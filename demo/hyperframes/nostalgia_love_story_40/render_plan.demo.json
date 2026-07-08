@@ -1,0 +1,124 @@
+{
+  "render_plan_version": 1,
+  "project_id": "demo-wedding-001",
+  "template_id": "nostalgia_love_story_40",
+  "output": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "duration_seconds": 40,
+    "watermark": true
+  },
+  "theme": {
+    "palette": {
+      "paper": "#F4E8D8",
+      "ink": "#3B2A22",
+      "rose": "#B8756F",
+      "gold": "#C6A15B",
+      "shadow": "#16110D"
+    },
+    "typography": {
+      "display": "Cormorant Garamond",
+      "body": "Inter"
+    },
+    "effects": ["grain-overlay", "vignette", "light-leak", "parallax-zoom"]
+  },
+  "audio": {
+    "music_track_id": "mixkit-657",
+    "title": "Wedding 01",
+    "artist": "Francisco Alvear",
+    "source": "Mixkit Free Stock Music",
+    "source_url": "https://mixkit.co/free-stock-music/",
+    "license_page": "https://mixkit.co/license/",
+    "path": "../assets/music_mixkit/mixkit-657-wedding-01-francisco-alvear.mp3",
+    "render_path": "assets/audio/wedding-01-40s-fade.mp3",
+    "duration_seconds": 40,
+    "source_duration_seconds": 145.778,
+    "volume": 0.82,
+    "processing": ["trim_to_40s", "fade_in_1.2s", "fade_out_3.5s"]
+  },
+  "scenes": [
+    {
+      "id": "opening_title",
+      "start": 0,
+      "duration": 5,
+      "layout": "full_photo_title",
+      "transition_out": "light_leak",
+      "text": {
+        "title": "Maya & Ethan",
+        "subtitle": "September 12, 2026 - Napa Valley"
+      },
+      "assets": ["photo_001"]
+    },
+    {
+      "id": "place_and_morning",
+      "start": 5,
+      "duration": 7,
+      "layout": "stacked_memory_cards",
+      "transition_out": "soft_crossfade",
+      "text": {
+        "caption": "Some stories do not begin loudly. They grow quietly, one ordinary day at a time."
+      },
+      "assets": ["photo_002", "photo_003", "photo_004"]
+    },
+    {
+      "id": "family_and_friends",
+      "start": 12,
+      "duration": 8,
+      "layout": "split_photo_caption",
+      "transition_out": "paper_wipe",
+      "text": {
+        "caption": "Their families became part of the story, holding every small promise with care."
+      },
+      "assets": ["photo_005", "photo_006"]
+    },
+    {
+      "id": "vows",
+      "start": 20,
+      "duration": 8,
+      "layout": "detail_to_hero",
+      "transition_out": "flash_through_white",
+      "text": {
+        "caption": "On this day, every memory gathers in one place."
+      },
+      "assets": ["photo_007", "photo_008"]
+    },
+    {
+      "id": "celebration",
+      "start": 28,
+      "duration": 7,
+      "layout": "rhythm_montage",
+      "transition_out": "cinematic_zoom",
+      "text": {
+        "caption": "The next chapter begins with everyone they love beside them."
+      },
+      "assets": ["photo_009", "photo_010", "photo_011"]
+    },
+    {
+      "id": "ending_card",
+      "start": 35,
+      "duration": 5,
+      "layout": "finale_photo_card",
+      "transition_out": "fade_to_paper",
+      "text": {
+        "title": "Maya & Ethan",
+        "subtitle": "The first night of the next chapter"
+      },
+      "assets": ["photo_012"]
+    }
+  ],
+  "asset_catalog": [
+    {"id": "photo_001", "path": "../assets/photos_tagged_generated/photo_001.jpg", "orientation": "portrait", "tags": ["couple", "engagement", "outdoor", "smiling", "hero"], "moment": "opening_memory", "quality_score": 0.96},
+    {"id": "photo_002", "path": "../assets/photos_tagged_generated/photo_002.jpg", "orientation": "portrait", "tags": ["venue", "garden", "details", "establishing"], "moment": "place", "quality_score": 0.88},
+    {"id": "photo_003", "path": "../assets/photos_tagged_generated/photo_003.jpg", "orientation": "portrait", "tags": ["bride", "portrait", "getting_ready", "soft_light"], "moment": "wedding_morning", "quality_score": 0.91},
+    {"id": "photo_004", "path": "../assets/photos_tagged_generated/photo_004.jpg", "orientation": "portrait", "tags": ["groom", "portrait", "getting_ready", "classic"], "moment": "wedding_morning", "quality_score": 0.89},
+    {"id": "photo_005", "path": "../assets/photos_tagged_generated/photo_005.jpg", "orientation": "portrait", "tags": ["family", "parents", "embrace", "memory"], "moment": "family_memory", "quality_score": 0.87},
+    {"id": "photo_006", "path": "../assets/photos_tagged_generated/photo_006.jpg", "orientation": "portrait", "tags": ["friends", "laughing", "party", "candid"], "moment": "community", "quality_score": 0.84},
+    {"id": "photo_007", "path": "../assets/photos_tagged_generated/photo_007.jpg", "orientation": "portrait", "tags": ["rings", "details", "ceremony", "symbol"], "moment": "vows", "quality_score": 0.93},
+    {"id": "photo_008", "path": "../assets/photos_tagged_generated/photo_008.jpg", "orientation": "portrait", "tags": ["ceremony", "couple", "vows", "emotional"], "moment": "vows", "quality_score": 0.95},
+    {"id": "photo_009", "path": "../assets/photos_tagged_generated/photo_009.jpg", "orientation": "portrait", "tags": ["kiss", "ceremony", "couple", "hero"], "moment": "payoff", "quality_score": 0.98},
+    {"id": "photo_010", "path": "../assets/photos_tagged_generated/photo_010.jpg", "orientation": "portrait", "tags": ["reception", "toast", "family", "friends"], "moment": "celebration", "quality_score": 0.86},
+    {"id": "photo_011", "path": "../assets/photos_tagged_generated/photo_011.jpg", "orientation": "portrait", "tags": ["dance", "party", "motion", "friends"], "moment": "celebration", "quality_score": 0.82},
+    {"id": "photo_012", "path": "../assets/photos_tagged_generated/photo_012.jpg", "orientation": "portrait", "tags": ["couple", "night", "sendoff", "finale"], "moment": "ending", "quality_score": 0.94}
+  ]
+}

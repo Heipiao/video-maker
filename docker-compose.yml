@@ -1,0 +1,20 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      VIDEO_MAKER_STORAGE_DIR: /app/storage
+      VIDEO_MAKER_PUBLIC_BASE_URL: http://localhost:8000
+    volumes:
+      - ./storage:/app/storage
+
+  renderer:
+    profiles: ["renderer"]
+    build:
+      context: .
+      dockerfile: renderer/Dockerfile
+    environment:
+      VIDEO_MAKER_REMOTION_COMMAND: node remotion/render.mjs {manifest_path} {output_path}

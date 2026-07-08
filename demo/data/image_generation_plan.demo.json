@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "strategy": "tag_first_image_generation",
+  "visual_identity": {
+    "style": "realistic editorial Napa garden wedding photography",
+    "couple_continuity": "same bride in ivory dress and groom in black tuxedo across the generated set",
+    "look": ["warm romantic lighting", "soft film grain", "natural skin texture", "no text", "no watermark"],
+    "format": "vertical 9:16 wedding photo panels"
+  },
+  "assets": [
+    {
+      "id": "photo_001",
+      "output_path": "../assets/photos_tagged_generated/photo_001.jpg",
+      "tags": ["couple", "engagement", "outdoor", "smiling", "hero"],
+      "moment": "opening_memory",
+      "prompt": "Intimate couple portrait in a vineyard garden, both smiling naturally, strong hero frame."
+    },
+    {
+      "id": "photo_002",
+      "output_path": "../assets/photos_tagged_generated/photo_002.jpg",
+      "tags": ["venue", "garden", "details", "establishing"],
+      "moment": "place",
+      "prompt": "Elegant garden wedding venue with aisle, flowers, chairs, warm sun, no people as the focus."
+    },
+    {
+      "id": "photo_003",
+      "output_path": "../assets/photos_tagged_generated/photo_003.jpg",
+      "tags": ["bride", "portrait", "getting_ready", "soft_light"],
+      "moment": "wedding_morning",
+      "prompt": "Bride getting ready by a window, soft morning light, emotional quiet portrait."
+    },
+    {
+      "id": "photo_004",
+      "output_path": "../assets/photos_tagged_generated/photo_004.jpg",
+      "tags": ["groom", "portrait", "getting_ready", "classic"],
+      "moment": "wedding_morning",
+      "prompt": "Groom fastening cufflinks or bow tie near a window, classic tuxedo, calm anticipation."
+    },
+    {
+      "id": "photo_005",
+      "output_path": "../assets/photos_tagged_generated/photo_005.jpg",
+      "tags": ["family", "parents", "embrace", "memory"],
+      "moment": "family_memory",
+      "prompt": "Warm family embrace before ceremony, parents and bride or groom, emotional candid moment."
+    },
+    {
+      "id": "photo_006",
+      "output_path": "../assets/photos_tagged_generated/photo_006.jpg",
+      "tags": ["friends", "laughing", "party", "candid"],
+      "moment": "community",
+      "prompt": "Wedding party friends laughing together outdoors, candid joy, champagne or bouquets, not too crowded."
+    },
+    {
+      "id": "photo_007",
+      "output_path": "../assets/photos_tagged_generated/photo_007.jpg",
+      "tags": ["rings", "details", "ceremony", "symbol"],
+      "moment": "vows",
+      "prompt": "Close-up of wedding rings in an elegant velvet ring box with flowers and vow booklet, shallow depth of field."
+    },
+    {
+      "id": "photo_008",
+      "output_path": "../assets/photos_tagged_generated/photo_008.jpg",
+      "tags": ["ceremony", "couple", "vows", "emotional"],
+      "moment": "vows",
+      "prompt": "Bride and groom exchanging vows under floral arch, emotional faces, guests softly blurred."
+    },
+    {
+      "id": "photo_009",
+      "output_path": "../assets/photos_tagged_generated/photo_009.jpg",
+      "tags": ["kiss", "ceremony", "couple", "hero"],
+      "moment": "payoff",
+      "prompt": "Newly married couple kissing after the ceremony, petals or soft sunlight, celebratory hero image."
+    },
+    {
+      "id": "photo_010",
+      "output_path": "../assets/photos_tagged_generated/photo_010.jpg",
+      "tags": ["reception", "toast", "family", "friends"],
+      "moment": "celebration",
+      "prompt": "Elegant indoor or outdoor wedding reception toast, guests raising glasses, couple smiling at the table, warm candlelight."
+    },
+    {
+      "id": "photo_011",
+      "output_path": "../assets/photos_tagged_generated/photo_011.jpg",
+      "tags": ["dance", "party", "motion", "friends"],
+      "moment": "celebration",
+      "prompt": "Bride and groom dancing with friends under string lights, joyful motion blur, energetic celebration."
+    },
+    {
+      "id": "photo_012",
+      "output_path": "../assets/photos_tagged_generated/photo_012.jpg",
+      "tags": ["couple", "night", "sendoff", "finale"],
+      "moment": "ending",
+      "prompt": "Romantic night sendoff portrait of the couple with soft sparklers and warm lights, cinematic final image."
+    }
+  ],
+  "source_triptychs": [
+    "/Users/leoliu/.codex/generated_images/019f1e56-a823-71d3-b459-31029047b600/ig_09dc2f65c34e085e016a453c3513b48197b41bd3f589e4e86e.png",
+    "/Users/leoliu/.codex/generated_images/019f1e56-a823-71d3-b459-31029047b600/ig_09dc2f65c34e085e016a453c6d74448197b9337272feeb1fa9.png",
+    "/Users/leoliu/.codex/generated_images/019f1e56-a823-71d3-b459-31029047b600/ig_09dc2f65c34e085e016a453cec5aa88197a3930ba26b585729.png",
+    "/Users/leoliu/.codex/generated_images/019f1e56-a823-71d3-b459-31029047b600/ig_09dc2f65c34e085e016a453d259fd8819795e045e938162535.png"
+  ]
+}

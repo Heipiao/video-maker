@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Video Agent</title>
+    <style>
+      :root {
+        --bg: #eef1f4;
+        --panel: #ffffff;
+        --text: #1c2024;
+        --muted: #646d78;
+        --line: #d9dee5;
+        --primary: #185abc;
+        --primary-strong: #0f3f8f;
+        --accent: #8b3d2f;
+        --accent-soft: #fff3ed;
+        --surface: #f8fafc;
+        --danger: #b42318;
+        --ok: #067647;
+        --ok-soft: #e8f5ee;
+        --code: #111827;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(10px);
+      }
+
+      .header-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.2;
+        font-weight: 700;
+      }
+
+      main {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 14px;
+        display: grid;
+        grid-template-columns: 370px minmax(460px, 1fr) 450px;
+        gap: 12px;
+        min-height: calc(100dvh - 72px);
+      }
+
+      section,
+      aside {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      }
+
+      aside {
+        padding: 16px;
+        display: grid;
+        gap: 16px;
+        align-content: start;
+        overflow: auto;
+        max-height: calc(100dvh - 100px);
+      }
+
+      section {
+        min-width: 0;
+        display: grid;
+        grid-template-rows: auto minmax(320px, 1fr) auto;
+        overflow: hidden;
+        max-height: calc(100dvh - 100px);
+      }
+
+      .section-head,
+      .composer {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .composer {
+        border-top: 1px solid var(--line);
+        border-bottom: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      h2,
+      h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+        line-height: 1.3;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px 10px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      textarea {
+        min-height: 76px;
+        resize: vertical;
+      }
+
+      button {
+        border: 1px solid var(--primary);
+        background: var(--primary);
+        color: #fff;
+        border-radius: 6px;
+        padding: 9px 12px;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--primary-strong);
+      }
+
+      button.secondary {
+        border-color: var(--line);
+        background: #fff;
+        color: var(--text);
+      }
+
+      button.secondary:hover {
+        border-color: #b8c0cc;
+        background: #f8fafc;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      button.render {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+
+      button.render:hover {
+        background: #6f2f25;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .asset-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .dropzone {
+        border: 1px dashed #9aa8bb;
+        border-radius: 8px;
+        padding: 16px;
+        display: grid;
+        gap: 8px;
+        place-items: center;
+        background: #fbfcfe;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .dropzone.dragover {
+        border-color: var(--primary);
+        background: #edf4ff;
+        color: var(--primary-strong);
+      }
+
+      .file-preview {
+        display: grid;
+        gap: 8px;
+      }
+
+      .file-preview img,
+      .asset-thumb img {
+        width: 100%;
+        max-height: 160px;
+        object-fit: cover;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+      }
+
+      .file-preview audio,
+      .asset-thumb audio {
+        width: 100%;
+      }
+
+      .asset-thumb {
+        display: grid;
+        gap: 6px;
+      }
+
+      .asset-item {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        display: grid;
+        gap: 5px;
+        background: #fbfcfe;
+      }
+
+      .asset-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: var(--primary-strong);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .id {
+        overflow-wrap: anywhere;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .messages {
+        padding: 16px;
+        overflow: auto;
+        display: grid;
+        align-content: start;
+        gap: 12px;
+        min-height: 0;
+      }
+
+      .message {
+        max-width: 82%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fff;
+      }
+
+      .message.user {
+        justify-self: end;
+        background: #edf4ff;
+        border-color: #c7dcff;
+      }
+
+      .message.assistant {
+        justify-self: start;
+      }
+
+      .message.tool {
+        justify-self: stretch;
+        max-width: 100%;
+        background: #f8fafc;
+      }
+
+      .message-role {
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      pre {
+        margin: 8px 0 0;
+        max-height: 300px;
+        overflow: auto;
+        border-radius: 6px;
+        padding: 10px;
+        background: var(--code);
+        color: #f9fafb;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .status {
+        min-height: 22px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      .status.ok {
+        color: var(--ok);
+      }
+
+      .result-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .result-grid a {
+        color: var(--primary);
+        overflow-wrap: anywhere;
+      }
+
+      .link-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .link-row {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px 10px;
+        background: var(--surface);
+        display: grid;
+        gap: 3px;
+      }
+
+      .link-row strong {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .render-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #111827;
+      }
+
+      .video-preview {
+        width: 100%;
+        max-height: 420px;
+        display: block;
+        background: #111827;
+      }
+
+      .preview-empty {
+        min-height: 250px;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        color: #cbd5e1;
+        text-align: center;
+        background:
+          linear-gradient(135deg, rgba(24, 90, 188, 0.18), rgba(139, 61, 47, 0.18)),
+          #111827;
+      }
+
+      .pipeline {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .stage {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px;
+        background: var(--surface);
+        min-width: 0;
+      }
+
+      .stage strong {
+        display: block;
+        font-size: 13px;
+      }
+
+      .stage span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .stage.ready {
+        border-color: #addbc2;
+        background: var(--ok-soft);
+      }
+
+      .stage.active {
+        border-color: #e5b9ae;
+        background: var(--accent-soft);
+      }
+
+      details.context-panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      details.context-panel summary {
+        cursor: pointer;
+        padding: 10px 12px;
+        font-weight: 700;
+      }
+
+      .context-body {
+        border-top: 1px solid var(--line);
+        padding: 10px 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .workbench-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .workbench-title h2 {
+        margin: 0;
+      }
+
+      .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .metric {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px;
+        background: #fbfcfe;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 17px;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: 1fr;
+          padding: 12px;
+          min-height: auto;
+        }
+
+        .header-inner {
+          padding: 12px;
+        }
+
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        .message {
+          max-width: 100%;
+        }
+
+        aside,
+        section {
+          max-height: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="header-inner">
+        <div>
+          <h1>Video Agent</h1>
+          <div class="muted">本地素材登记、Agent 会话和视频 manifest 生成调试台</div>
+        </div>
+        <div class="actions">
+          <button class="secondary" id="healthBtn" type="button">检查服务</button>
+          <span class="status" id="healthStatus"></span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <aside>
+        <div>
+          <div class="workbench-title">
+            <h2>素材库</h2>
+            <span class="pill" id="assetCountPill">0 assets</span>
+          </div>
+          <div class="dropzone" id="dropzone">
+            <input id="fileInput" type="file" accept="image/*,video/*,audio/*" hidden />
+            <button class="secondary" id="chooseFileBtn" type="button">选择或拖入素材文件</button>
+            <div>支持图片、视频、声音。上传后会自动填入 URL。</div>
+            <div class="file-preview" id="filePreview"></div>
+          </div>
+          <div class="row">
+            <label>
+              类型
+              <select id="assetType">
+                <option value="photo">图片</option>
+                <option value="video">视频</option>
+                <option value="music">声音/音乐</option>
+              </select>
+            </label>
+            <label>
+              Tag
+              <input id="assetTag" value="ceremony" />
+            </label>
+          </div>
+          <label>
+            URL
+            <input id="assetUrl" value="https://example.com/ceremony.jpg" />
+          </label>
+          <label>
+            文字描述
+            <textarea id="assetDescription">The ceremony kiss</textarea>
+          </label>
+          <label>
+            分析 JSON
+            <textarea id="assetAnalysis"></textarea>
+          </label>
+          <div class="actions">
+            <button id="addAssetBtn" type="button">登记素材</button>
+            <button class="secondary" id="loadPresetBtn" type="button">填充示例分析</button>
+          </div>
+          <div class="status" id="assetStatus"></div>
+        </div>
+
+        <div>
+          <h2>已登记素材</h2>
+          <div class="asset-list" id="assetList"></div>
+        </div>
+
+        <div>
+          <h2>Agent 会话</h2>
+          <label>
+            系统提示词
+            <textarea id="systemPrompt">你是婚礼视频导演，只输出可渲染的视频脚本。根据素材描述、视觉分析和音乐卡点生成温馨、有节奏的视频。</textarea>
+          </label>
+          <div class="actions">
+            <button id="createSessionBtn" type="button">创建会话</button>
+            <button class="secondary" id="resetBtn" type="button">重置本页</button>
+          </div>
+          <div class="status" id="sessionStatus"></div>
+        </div>
+      </aside>
+
+      <section>
+        <div class="section-head">
+          <div class="workbench-title">
+            <h2>生成对话</h2>
+            <span class="pill">DeepSeek / generate_video</span>
+          </div>
+          <div class="muted" id="sessionMeta">尚未创建会话</div>
+          <div class="pipeline">
+            <div class="stage" id="stageAssets">
+              <strong>素材</strong>
+              <span>等待登记</span>
+            </div>
+            <div class="stage" id="stageSpec">
+              <strong>脚本</strong>
+              <span>等待 Agent</span>
+            </div>
+            <div class="stage" id="stageVideo">
+              <strong>视频</strong>
+              <span>等待渲染</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="messages" id="messages"></div>
+
+        <div class="composer">
+          <label>
+            用户消息
+            <textarea id="messageInput">做一个温馨婚礼开场，音乐卡点一点</textarea>
+          </label>
+          <div class="actions">
+            <button id="sendBtn" type="button" disabled>发送给 Agent</button>
+            <button class="secondary" id="manifestBtn" type="button" disabled>读取 Manifest</button>
+            <button class="render" id="remotionBtn" type="button" disabled>Remotion 生成视频</button>
+          </div>
+          <div class="status" id="runStatus"></div>
+        </div>
+      </section>
+
+      <aside>
+        <div>
+          <div class="workbench-title">
+            <h2>运行检查器</h2>
+            <button class="secondary" id="clearInspectorBtn" type="button">清空</button>
+          </div>
+          <div class="metric-strip">
+            <div class="metric">
+              <strong id="metricAssets">0</strong>
+              <span>素材</span>
+            </div>
+            <div class="metric">
+              <strong id="metricTurns">0</strong>
+              <span>轮次</span>
+            </div>
+            <div class="metric">
+              <strong id="metricStatus">-</strong>
+              <span>状态</span>
+            </div>
+          </div>
+        </div>
+        <div class="result-grid">
+          <h2>输出</h2>
+          <div id="latestLinks"></div>
+          <h2>视频预览</h2>
+          <div class="render-panel">
+            <div class="preview-empty" id="previewEmpty">生成 Remotion 视频后会在这里预览</div>
+            <video id="videoPreview" class="video-preview" controls hidden></video>
+          </div>
+          <h2>Context</h2>
+          <div id="contextPreview"></div>
+          <h2>Manifest</h2>
+          <pre id="manifestPreview" hidden></pre>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const state = {
+        assets: [],
+        session: null,
+        latestRun: null,
+        selectedFile: null,
+        selectedFileObjectUrl: null,
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      function setStatus(id, text, kind = "") {
+        const el = $(id);
+        el.textContent = text || "";
+        el.className = `status ${kind}`.trim();
+      }
+
+      async function api(path, options = {}) {
+        const headers = options.body instanceof FormData
+          ? options.headers || {}
+          : { "Content-Type": "application/json", ...(options.headers || {}) };
+        const response = await fetch(path, { ...options, headers });
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json")
+          ? await response.json()
+          : await response.text();
+        if (!response.ok) {
+          const detail = typeof payload === "object" ? payload.detail || JSON.stringify(payload) : payload;
+          throw new Error(detail || `HTTP ${response.status}`);
+        }
+        return payload;
+      }
+
+      function renderAssets() {
+        const list = $("assetList");
+        $("assetCountPill").textContent = `${state.assets.length} assets`;
+        $("metricAssets").textContent = state.assets.length;
+        updatePipeline();
+        if (!state.assets.length) {
+          list.innerHTML = '<div class="muted">还没有素材</div>';
+          return;
+        }
+        list.innerHTML = state.assets
+          .map(
+            (asset) => `
+              <div class="asset-item">
+                ${assetPreviewHtml(asset)}
+                <div class="asset-title">
+                  <span>${escapeHtml(asset.tag)}</span>
+                  <span class="pill">${escapeHtml(asset.type)}</span>
+                </div>
+                <div class="muted">${escapeHtml(asset.description || asset.caption || "")}</div>
+                <div class="id">${escapeHtml(asset.id)}</div>
+              </div>
+            `,
+          )
+          .join("");
+      }
+
+      function assetPreviewHtml(asset) {
+        if (asset.type === "photo") {
+          return `<div class="asset-thumb"><img src="${escapeHtml(asset.url)}" alt="${escapeHtml(asset.tag)}" /></div>`;
+        }
+        if (asset.type === "music") {
+          return `<div class="asset-thumb"><audio controls src="${escapeHtml(asset.url)}"></audio></div>`;
+        }
+        if (asset.type === "video") {
+          return `<div class="asset-thumb"><video controls src="${escapeHtml(asset.url)}" style="width:100%;max-height:160px;border-radius:6px;border:1px solid var(--line);"></video></div>`;
+        }
+        return "";
+      }
+
+      function renderSessionMeta() {
+        $("sendBtn").disabled = !state.session;
+        updatePipeline();
+        if (!state.session) {
+          $("sessionMeta").textContent = "尚未创建会话";
+          $("metricTurns").textContent = "0";
+          return;
+        }
+        $("sessionMeta").textContent = `session=${state.session.id} assets=${state.session.asset_ids.length}`;
+        $("metricTurns").textContent = state.session.history.filter((item) => item.role === "user").length;
+      }
+
+      function addMessage(role, content, extra) {
+        const messages = $("messages");
+        const node = document.createElement("div");
+        node.className = `message ${role}`;
+        node.innerHTML = `
+          <div class="message-role">${escapeHtml(role)}</div>
+          <div>${escapeHtml(content || "")}</div>
+          ${extra ? `<pre>${escapeHtml(JSON.stringify(extra, null, 2))}</pre>` : ""}
+        `;
+        messages.appendChild(node);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function renderRunResult(run) {
+        $("manifestBtn").disabled = !run?.tool_result?.manifest_url;
+        $("remotionBtn").disabled = !run?.tool_result?.render_job_id;
+        $("metricStatus").textContent = run?.status || "-";
+        const tool = run?.tool_result;
+        if (!tool) {
+          $("latestLinks").innerHTML = "";
+          updatePipeline();
+          return;
+        }
+        $("latestLinks").innerHTML = `
+          <div class="link-list">
+            <div class="link-row"><strong>spec_id</strong><span>${escapeHtml(tool.spec_id || "")}</span></div>
+            <div class="link-row"><strong>render_job_id</strong><span>${escapeHtml(tool.render_job_id || "")}</span></div>
+            <div class="link-row"><strong>manifest</strong><a href="${escapeHtml(tool.manifest_url || "#")}" target="_blank">${escapeHtml(tool.manifest_url || "")}</a></div>
+            ${tool.output_url ? `<div class="link-row"><strong>video</strong><a href="${escapeHtml(tool.output_url)}" target="_blank">${escapeHtml(tool.output_url)}</a></div>` : ""}
+            <div class="link-row"><strong>global path</strong><span>${escapeHtml(tool.global_render_path || "")}</span></div>
+          </div>
+        `;
+        renderVideoPreview(tool.output_url);
+        renderContext(run);
+        updatePipeline();
+      }
+
+      function clearRunState() {
+        state.latestRun = null;
+        $("messages").innerHTML = "";
+        $("latestLinks").innerHTML = "";
+        $("contextPreview").innerHTML = "";
+        $("manifestPreview").hidden = true;
+        $("manifestPreview").textContent = "";
+        $("manifestBtn").disabled = true;
+        $("remotionBtn").disabled = true;
+        renderVideoPreview(null);
+        $("metricStatus").textContent = "-";
+        setStatus("runStatus", "");
+      }
+
+      function renderVideoPreview(outputUrl) {
+        const preview = $("videoPreview");
+        const empty = $("previewEmpty");
+        if (!outputUrl) {
+          preview.hidden = true;
+          empty.hidden = false;
+          preview.removeAttribute("src");
+          preview.load();
+          return;
+        }
+        preview.src = outputUrl;
+        preview.hidden = false;
+        empty.hidden = true;
+        preview.load();
+      }
+
+      function updatePipeline() {
+        setStage("stageAssets", state.assets.length > 0 ? "ready" : "");
+        setStage("stageSpec", state.latestRun?.tool_result?.manifest_url ? "ready" : state.session ? "active" : "");
+        setStage("stageVideo", state.latestRun?.tool_result?.output_url ? "ready" : state.latestRun?.tool_result?.render_job_id ? "active" : "");
+      }
+
+      function setStage(id, status) {
+        const node = $(id);
+        node.classList.remove("ready", "active");
+        if (status) node.classList.add(status);
+        const label = node.querySelector("span");
+        if (id === "stageAssets") {
+          label.textContent = state.assets.length ? `${state.assets.length} 个素材` : "等待登记";
+        } else if (id === "stageSpec") {
+          label.textContent = state.latestRun?.tool_result?.manifest_url
+            ? "Manifest ready"
+            : state.session
+              ? "可生成"
+              : "等待 Agent";
+        } else {
+          label.textContent = state.latestRun?.tool_result?.output_url
+            ? "MP4 ready"
+            : state.latestRun?.tool_result?.render_job_id
+              ? "可渲染"
+              : "等待渲染";
+        }
+      }
+
+      function renderContext(run) {
+        const target = $("contextPreview");
+        const sections = run?.context_sections || [];
+        if (!sections.length) {
+          target.innerHTML = "";
+          return;
+        }
+        target.innerHTML = `
+          <h3>本轮 Context</h3>
+          ${sections
+            .map(
+              (section) => `
+                <details class="context-panel">
+                  <summary>${escapeHtml(section.name)}</summary>
+                  <div class="context-body">
+                    <pre>${escapeHtml(section.content)}</pre>
+                  </div>
+                </details>
+              `,
+            )
+            .join("")}
+        `;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function defaultAnalysis(type) {
+        if (type === "music") {
+          return {
+            audio: {
+              description: "Warm piano track with a steady pulse",
+              duration_seconds: 62.5,
+              bpm: 92,
+              energy: 0.42,
+              mood: "warm",
+              beat_sync_recommended: true,
+              beat_markers: [
+                { time_seconds: 0, confidence: 0.9, label: "intro" },
+                { time_seconds: 8.2, confidence: 0.88, label: "beat" },
+              ],
+              spectrum_summary: { low: 0.2, mid: 0.5, high: 0.3 },
+            },
+          };
+        }
+        return {
+          visual: {
+            description: "Outdoor wedding ceremony",
+            detected_tags: ["couple", "ceremony", "flowers"],
+            people_count: 2,
+            mood: "romantic",
+            quality_score: 0.91,
+            dominant_colors: ["#FFFFFF", "#C9A86A"],
+          },
+        };
+      }
+
+      $("healthBtn").addEventListener("click", async () => {
+        try {
+          const health = await api("/health");
+          setStatus("healthStatus", `${health.service}: ${health.status}`, "ok");
+        } catch (error) {
+          setStatus("healthStatus", error.message, "error");
+        }
+      });
+
+      $("loadPresetBtn").addEventListener("click", () => {
+        $("assetAnalysis").value = JSON.stringify(defaultAnalysis($("assetType").value), null, 2);
+      });
+
+      $("chooseFileBtn").addEventListener("click", () => $("fileInput").click());
+
+      $("fileInput").addEventListener("change", () => {
+        const file = $("fileInput").files?.[0];
+        if (file) setSelectedFile(file);
+      });
+
+      $("dropzone").addEventListener("dragover", (event) => {
+        event.preventDefault();
+        $("dropzone").classList.add("dragover");
+      });
+
+      $("dropzone").addEventListener("dragleave", () => {
+        $("dropzone").classList.remove("dragover");
+      });
+
+      $("dropzone").addEventListener("drop", (event) => {
+        event.preventDefault();
+        $("dropzone").classList.remove("dragover");
+        const file = event.dataTransfer.files?.[0];
+        if (file) setSelectedFile(file);
+      });
+
+      function setSelectedFile(file) {
+        state.selectedFile = file;
+        if (state.selectedFileObjectUrl) URL.revokeObjectURL(state.selectedFileObjectUrl);
+        state.selectedFileObjectUrl = URL.createObjectURL(file);
+        const type = guessAssetType(file.type, file.name);
+        $("assetType").value = type;
+        $("assetTag").value = file.name.replace(/\.[^.]+$/, "").slice(0, 40) || type;
+        $("assetUrl").value = "";
+        $("assetDescription").value = file.name;
+        $("assetAnalysis").value = JSON.stringify(defaultAnalysis(type), null, 2);
+        renderFilePreview(file, type);
+      }
+
+      function guessAssetType(contentType, filename) {
+        const lower = filename.toLowerCase();
+        if (contentType.startsWith("image/") || /\.(jpg|jpeg|png|webp|gif)$/.test(lower)) return "photo";
+        if (contentType.startsWith("video/") || /\.(mp4|mov|webm|m4v)$/.test(lower)) return "video";
+        if (contentType.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg)$/.test(lower)) return "music";
+        return "photo";
+      }
+
+      function renderFilePreview(file, type) {
+        const url = state.selectedFileObjectUrl;
+        const meta = `${escapeHtml(file.name)} · ${Math.round(file.size / 1024)} KB`;
+        if (type === "photo") {
+          $("filePreview").innerHTML = `<img src="${escapeHtml(url)}" alt="preview" /><div class="muted">${meta}</div>`;
+        } else if (type === "music") {
+          $("filePreview").innerHTML = `<audio controls src="${escapeHtml(url)}"></audio><div class="muted">${meta}</div>`;
+        } else {
+          $("filePreview").innerHTML = `<video controls src="${escapeHtml(url)}" style="width:100%;max-height:180px;border-radius:6px;border:1px solid var(--line);"></video><div class="muted">${meta}</div>`;
+        }
+      }
+
+      async function uploadSelectedFileIfNeeded() {
+        if (!state.selectedFile) return $("assetUrl").value.trim();
+        const form = new FormData();
+        form.append("file", state.selectedFile);
+        const result = await api("/api/v1/uploads", {
+          method: "POST",
+          body: form,
+        });
+        $("assetUrl").value = result.url;
+        $("assetType").value = result.suggested_asset_type;
+        state.selectedFile = null;
+        return result.url;
+      }
+
+      $("assetType").addEventListener("change", () => {
+        const type = $("assetType").value;
+        if (type === "music") {
+          $("assetTag").value = "romantic";
+          $("assetUrl").value = "https://example.com/music.mp3";
+          $("assetDescription").value = "Soft piano music suitable for a wedding opening";
+        } else if (type === "video") {
+          $("assetTag").value = "first_dance";
+          $("assetUrl").value = "https://example.com/first-dance.mp4";
+          $("assetDescription").value = "First dance clip";
+        } else {
+          $("assetTag").value = "ceremony";
+          $("assetUrl").value = "https://example.com/ceremony.jpg";
+          $("assetDescription").value = "The ceremony kiss";
+        }
+        $("assetAnalysis").value = JSON.stringify(defaultAnalysis(type), null, 2);
+      });
+
+      $("addAssetBtn").addEventListener("click", async () => {
+        setStatus("assetStatus", "登记中...");
+        try {
+          let analysis = {};
+          const raw = $("assetAnalysis").value.trim();
+          if (raw) analysis = JSON.parse(raw);
+          const url = await uploadSelectedFileIfNeeded();
+          const payload = {
+            type: $("assetType").value,
+            url,
+            tag: $("assetTag").value.trim(),
+            description: $("assetDescription").value.trim(),
+            analysis_status: raw ? "ready" : "pending",
+            analysis,
+          };
+          const result = await api("/api/v1/assets", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          state.assets.push(result.asset);
+          renderAssets();
+          $("filePreview").innerHTML = "";
+          setStatus("assetStatus", "素材已登记", "ok");
+        } catch (error) {
+          setStatus("assetStatus", error.message, "error");
+        }
+      });
+
+      $("createSessionBtn").addEventListener("click", async () => {
+        setStatus("sessionStatus", "创建中...");
+        try {
+          const result = await api("/api/v1/agent/sessions", {
+            method: "POST",
+            body: JSON.stringify({
+              system_prompt: $("systemPrompt").value.trim(),
+              asset_ids: state.assets.map((asset) => asset.id),
+            }),
+          });
+          state.session = result.session;
+          clearRunState();
+          renderSessionMeta();
+          setStatus("sessionStatus", "会话已创建", "ok");
+          addMessage("system", state.session.system_prompt);
+        } catch (error) {
+          setStatus("sessionStatus", error.message, "error");
+        }
+      });
+
+      $("sendBtn").addEventListener("click", async () => {
+        if (!state.session) return;
+        const message = $("messageInput").value.trim();
+        if (!message) return;
+        setStatus("runStatus", "Agent 运行中...");
+        addMessage("user", message);
+        try {
+          const result = await api(`/api/v1/agent/sessions/${state.session.id}/messages`, {
+            method: "POST",
+            body: JSON.stringify({ message }),
+          });
+          state.session = result.session;
+          state.latestRun = result.run;
+          addMessage("assistant", result.run.assistant_message || "");
+          if (result.run.tool_result) {
+            addMessage("tool", "generate_video", result.run.tool_result);
+          }
+          renderContext(result.run);
+          renderSessionMeta();
+          renderRunResult(result.run);
+          setStatus(
+            "runStatus",
+            result.run.status === "failed" ? result.run.error : "生成完成",
+            result.run.status === "failed" ? "error" : "ok",
+          );
+        } catch (error) {
+          setStatus("runStatus", error.message, "error");
+        }
+      });
+
+      $("manifestBtn").addEventListener("click", async () => {
+        const url = state.latestRun?.tool_result?.manifest_url;
+        if (!url) return;
+        setStatus("runStatus", "读取 manifest...");
+        try {
+          const manifest = await api(url);
+          $("manifestPreview").hidden = false;
+          $("manifestPreview").textContent = JSON.stringify(manifest, null, 2);
+          setStatus("runStatus", "Manifest 已读取", "ok");
+        } catch (error) {
+          setStatus("runStatus", error.message, "error");
+        }
+      });
+
+      $("remotionBtn").addEventListener("click", async () => {
+        const jobId = state.latestRun?.tool_result?.render_job_id;
+        if (!jobId) return;
+        setStatus("runStatus", "Remotion 渲染中...");
+        $("remotionBtn").disabled = true;
+        try {
+          const result = await api(`/api/v1/render-jobs/${jobId}/remotion`, {
+            method: "POST",
+          });
+          state.latestRun.tool_result.output_url = result.job.output_url;
+          state.latestRun.tool_result.render_job_status = result.job.status;
+          renderRunResult(state.latestRun);
+          setStatus("runStatus", "视频已生成，可预览", "ok");
+        } catch (error) {
+          $("remotionBtn").disabled = false;
+          setStatus("runStatus", error.message, "error");
+        }
+      });
+
+      $("resetBtn").addEventListener("click", () => {
+        state.assets = [];
+        state.session = null;
+        clearRunState();
+        renderAssets();
+        renderSessionMeta();
+        setStatus("assetStatus", "");
+        setStatus("sessionStatus", "");
+      });
+
+      $("clearInspectorBtn").addEventListener("click", () => {
+        $("latestLinks").innerHTML = "";
+        $("contextPreview").innerHTML = "";
+        $("manifestPreview").hidden = true;
+        $("manifestPreview").textContent = "";
+        renderVideoPreview(null);
+        $("metricStatus").textContent = "-";
+      });
+
+      $("assetAnalysis").value = JSON.stringify(defaultAnalysis("photo"), null, 2);
+      renderAssets();
+      renderSessionMeta();
+    </script>
+  </body>
+</html>

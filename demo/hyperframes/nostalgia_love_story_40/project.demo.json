@@ -1,0 +1,218 @@
+{
+  "project_id": "demo-wedding-001",
+  "video_type": "nostalgia_love_story",
+  "template_id": "nostalgia_love_story_40",
+  "aspect_ratio": "9:16",
+  "duration_seconds": 40,
+  "couple": {
+    "display_names": "Maya & Ethan",
+    "bride_name": "Maya",
+    "groom_name": "Ethan"
+  },
+  "event": {
+    "wedding_date": "2026-09-12",
+    "location": "Napa Valley, California",
+    "venue": "Rosehill Garden Estate"
+  },
+  "style": {
+    "mood": ["warm", "nostalgic", "romantic", "family"],
+    "visual_keywords": ["soft grain", "light leak", "cream paper", "subtle parallax"],
+    "music_track_id": "nostalgia_soft_pop"
+  },
+  "story": {
+    "title": "A Love Built in Little Moments",
+    "hook": "Some stories do not begin loudly. They grow quietly, one ordinary day at a time.",
+    "beats": [
+      "The first chapter was simple: two people, one shared laugh, and a feeling that stayed.",
+      "Their families became part of the story, holding every small promise with care.",
+      "Through weekends, road trips, and ordinary dinners, home started to mean each other.",
+      "On this day, every memory gathers in one place.",
+      "The next chapter begins with everyone they love beside them."
+    ],
+    "ending": "Maya and Ethan, September 12, 2026"
+  },
+  "assets": [
+    {
+      "id": "photo_001",
+      "path": "../assets/photos_tagged_generated/photo_001.jpg",
+      "orientation": "portrait",
+      "tags": ["couple", "engagement", "outdoor", "smiling", "hero"],
+      "moment": "opening_memory",
+      "people": ["bride", "groom"],
+      "mood": ["warm", "romantic"],
+      "quality_score": 0.96,
+      "order_hint": 1,
+      "caption_hint": "Where the story starts"
+    },
+    {
+      "id": "photo_002",
+      "path": "../assets/photos_tagged_generated/photo_002.jpg",
+      "orientation": "portrait",
+      "tags": ["venue", "garden", "details", "establishing"],
+      "moment": "place",
+      "people": [],
+      "mood": ["elegant", "calm"],
+      "quality_score": 0.88,
+      "order_hint": 2,
+      "caption_hint": "Rosehill Garden Estate"
+    },
+    {
+      "id": "photo_003",
+      "path": "../assets/photos_tagged_generated/photo_003.jpg",
+      "orientation": "portrait",
+      "tags": ["bride", "portrait", "getting_ready", "soft_light"],
+      "moment": "wedding_morning",
+      "people": ["bride"],
+      "mood": ["tender", "anticipation"],
+      "quality_score": 0.91,
+      "order_hint": 3,
+      "caption_hint": "Morning light, quiet nerves"
+    },
+    {
+      "id": "photo_004",
+      "path": "../assets/photos_tagged_generated/photo_004.jpg",
+      "orientation": "portrait",
+      "tags": ["groom", "portrait", "getting_ready", "classic"],
+      "moment": "wedding_morning",
+      "people": ["groom"],
+      "mood": ["calm", "anticipation"],
+      "quality_score": 0.89,
+      "order_hint": 4,
+      "caption_hint": "The promise getting close"
+    },
+    {
+      "id": "photo_005",
+      "path": "../assets/photos_tagged_generated/photo_005.jpg",
+      "orientation": "portrait",
+      "tags": ["family", "parents", "embrace", "memory"],
+      "moment": "family_memory",
+      "people": ["bride", "family"],
+      "mood": ["warm", "grateful"],
+      "quality_score": 0.87,
+      "order_hint": 5,
+      "caption_hint": "Held by the people who loved them first"
+    },
+    {
+      "id": "photo_006",
+      "path": "../assets/photos_tagged_generated/photo_006.jpg",
+      "orientation": "portrait",
+      "tags": ["friends", "laughing", "party", "candid"],
+      "moment": "community",
+      "people": ["friends"],
+      "mood": ["joyful", "alive"],
+      "quality_score": 0.84,
+      "order_hint": 6,
+      "caption_hint": "The joy around them"
+    },
+    {
+      "id": "photo_007",
+      "path": "../assets/photos_tagged_generated/photo_007.jpg",
+      "orientation": "portrait",
+      "tags": ["rings", "details", "ceremony", "symbol"],
+      "moment": "vows",
+      "people": [],
+      "mood": ["intimate", "sacred"],
+      "quality_score": 0.93,
+      "order_hint": 7,
+      "caption_hint": "A promise you can hold"
+    },
+    {
+      "id": "photo_008",
+      "path": "../assets/photos_tagged_generated/photo_008.jpg",
+      "orientation": "portrait",
+      "tags": ["ceremony", "couple", "vows", "emotional"],
+      "moment": "vows",
+      "people": ["bride", "groom"],
+      "mood": ["emotional", "romantic"],
+      "quality_score": 0.95,
+      "order_hint": 8,
+      "caption_hint": "In front of everyone they love"
+    },
+    {
+      "id": "photo_009",
+      "path": "../assets/photos_tagged_generated/photo_009.jpg",
+      "orientation": "portrait",
+      "tags": ["kiss", "ceremony", "couple", "hero"],
+      "moment": "payoff",
+      "people": ["bride", "groom"],
+      "mood": ["romantic", "celebration"],
+      "quality_score": 0.98,
+      "order_hint": 9,
+      "caption_hint": "The yes that becomes forever"
+    },
+    {
+      "id": "photo_010",
+      "path": "../assets/photos_tagged_generated/photo_010.jpg",
+      "orientation": "portrait",
+      "tags": ["reception", "toast", "family", "friends"],
+      "moment": "celebration",
+      "people": ["family", "friends"],
+      "mood": ["joyful", "warm"],
+      "quality_score": 0.86,
+      "order_hint": 10,
+      "caption_hint": "Every table became part of the story"
+    },
+    {
+      "id": "photo_011",
+      "path": "../assets/photos_tagged_generated/photo_011.jpg",
+      "orientation": "portrait",
+      "tags": ["dance", "party", "motion", "friends"],
+      "moment": "celebration",
+      "people": ["bride", "groom", "friends"],
+      "mood": ["energetic", "joyful"],
+      "quality_score": 0.82,
+      "order_hint": 11,
+      "caption_hint": "The night opened up"
+    },
+    {
+      "id": "photo_012",
+      "path": "../assets/photos_tagged_generated/photo_012.jpg",
+      "orientation": "portrait",
+      "tags": ["couple", "night", "sendoff", "finale"],
+      "moment": "ending",
+      "people": ["bride", "groom"],
+      "mood": ["romantic", "cinematic"],
+      "quality_score": 0.94,
+      "order_hint": 12,
+      "caption_hint": "The first night of the next chapter"
+    }
+  ],
+  "scene_intent": [
+    {
+      "id": "opening_title",
+      "duration": 5,
+      "preferred_tags": ["couple", "hero", "engagement"],
+      "text_role": "title"
+    },
+    {
+      "id": "place_and_morning",
+      "duration": 7,
+      "preferred_tags": ["venue", "getting_ready", "details"],
+      "text_role": "hook"
+    },
+    {
+      "id": "family_and_friends",
+      "duration": 8,
+      "preferred_tags": ["family", "friends", "memory"],
+      "text_role": "beat"
+    },
+    {
+      "id": "vows",
+      "duration": 8,
+      "preferred_tags": ["rings", "vows", "ceremony"],
+      "text_role": "beat"
+    },
+    {
+      "id": "celebration",
+      "duration": 7,
+      "preferred_tags": ["kiss", "reception", "dance", "party"],
+      "text_role": "beat"
+    },
+    {
+      "id": "ending_card",
+      "duration": 5,
+      "preferred_tags": ["sendoff", "finale", "couple"],
+      "text_role": "ending"
+    }
+  ]
+}
