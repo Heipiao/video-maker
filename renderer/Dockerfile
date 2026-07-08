@@ -16,9 +16,9 @@ RUN apt-get update \
         npm \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/pyproject.toml ./
-COPY backend/app ./app
-COPY renderer/remotion ./remotion
+COPY pyproject.toml ./
+COPY app ./app
+COPY remotion ./remotion
 
 RUN pip install --upgrade pip \
     && pip install .

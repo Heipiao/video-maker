@@ -46,13 +46,13 @@ PORT=8001 ./scripts/start.sh
 API image:
 
 ```bash
-docker compose up --build api
+docker build -f Dockerfile -t vowframe-api:dev backend
 ```
 
 Renderer worker image:
 
 ```bash
-docker build -f renderer/Dockerfile -t vowframe-renderer .
+docker build -f Dockerfile -t vowframe-renderer:dev renderer
 ```
 
 ## Render Flow

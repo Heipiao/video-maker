@@ -1,8 +1,8 @@
 services:
   api:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
@@ -14,7 +14,7 @@ services:
   renderer:
     profiles: ["renderer"]
     build:
-      context: .
-      dockerfile: renderer/Dockerfile
+      context: renderer
+      dockerfile: Dockerfile
     environment:
       VIDEO_MAKER_REMOTION_COMMAND: node remotion/render.mjs {manifest_path} {output_path}
