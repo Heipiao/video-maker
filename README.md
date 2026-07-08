@@ -72,3 +72,19 @@ Cloud rendering uses:
 ```text
 POST /api/v1/render-jobs/{job_id}/eci
 ```
+
+## Cloud Internal Render Network
+
+For production ECI rendering, keep user traffic and renderer traffic separate:
+
+```env
+VIDEO_MAKER_PUBLIC_BASE_URL=https://video-maker.aigcteacher.top
+VIDEO_MAKER_RENDER_CALLBACK_BASE_URL=http://<api-private-ip-or-internal-lb>:8017
+VIDEO_MAKER_OSS_ENDPOINT=https://oss-cn-hangzhou-internal.aliyuncs.com
+VIDEO_MAKER_OSS_PUBLIC_BASE_URL=https://ai-video-render.oss-cn-hangzhou.aliyuncs.com
+```
+
+`VIDEO_MAKER_RENDER_CALLBACK_BASE_URL` is used only by renderer workers for
+heartbeat/callback. `VIDEO_MAKER_OSS_ENDPOINT` is used for API/worker OSS
+upload and download. `VIDEO_MAKER_OSS_PUBLIC_BASE_URL` is still returned to
+users as the final MP4 URL.

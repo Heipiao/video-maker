@@ -111,6 +111,7 @@ def get_render_service(
         remotion_command=settings.remotion_command,
         remotion_timeout_seconds=settings.remotion_timeout_seconds,
         public_base_url=settings.public_base_url,
+        render_callback_base_url=settings.render_callback_base_url,
         output_storage=output_storage,
         cleanup_local_output=settings.oss_enabled and settings.oss_cleanup_local_output,
         eci_launcher=EciLauncher(settings),

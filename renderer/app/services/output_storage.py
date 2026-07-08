@@ -24,6 +24,9 @@ class LocalOutputStorage:
     def normalize_key(self, object_key: str) -> str:
         return object_key.strip("/")
 
+    def access_url(self, object_key: str) -> str:
+        raise OutputStorageError("OSS storage is required for remote render artifacts")
+
 
 class AliyunOssOutputStorage:
     def __init__(
@@ -104,6 +107,9 @@ class AliyunOssOutputStorage:
         if self.public_base_url:
             return f"{self.public_base_url}/{urllib.parse.quote(object_key, safe='/')}"
         return self._object_url(object_key)
+
+    def access_url(self, object_key: str) -> str:
+        return self._object_url(self.normalize_key(object_key))
 
     def normalize_key(self, object_key: str) -> str:
         key = object_key.strip("/")

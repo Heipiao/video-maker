@@ -22,6 +22,7 @@ CLOUD_ENV_DEFAULTS = {
     "VIDEO_MAKER_OSS_PUBLIC_BASE_URL": "",
     "VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID": "",
     "VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET": "",
+    "VIDEO_MAKER_RENDER_CALLBACK_BASE_URL": "",
     "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": "",
 }
 
@@ -459,7 +460,7 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test-internal.aliyuncs.com")
     monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
     monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
     monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
@@ -470,6 +471,7 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
     monkeypatch.setenv("VIDEO_MAKER_ECI_SECURITY_GROUP_ID", "sg-test")
     monkeypatch.setenv("VIDEO_MAKER_ECI_RENDERER_IMAGE", "registry/render:latest")
+    monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_BASE_URL", "http://10.0.0.8:8017")
     monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_TOKEN", "callback-token")
     uploads = []
     launch_requests = []
@@ -535,11 +537,21 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
         f"https://cdn.example.com/wedding-videos/jobs/{job['id']}/manifest.json"
     )
     assert uploads[0]["url"] == (
-        f"https://wedding-video.oss-cn-test.aliyuncs.com/"
+        f"https://wedding-video.oss-cn-test-internal.aliyuncs.com/"
         f"wedding-videos/jobs/{job['id']}/manifest.json"
     )
     assert uploads[0]["headers"]["Content-type"] == "application/json"
     assert b'"job_id":' in uploads[0]["data"]
+    assert launch_requests[0].manifest_url == (
+        f"https://wedding-video.oss-cn-test-internal.aliyuncs.com/"
+        f"wedding-videos/jobs/{job['id']}/manifest.json"
+    )
+    assert launch_requests[0].callback_url == (
+        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/callback"
+    )
+    assert launch_requests[0].heartbeat_url == (
+        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/heartbeat"
+    )
     assert launch_requests[0].output_oss_key == f"wedding-videos/jobs/{job['id']}/output.mp4"
     assert launch_requests[0].callback_token == "callback-token"
 

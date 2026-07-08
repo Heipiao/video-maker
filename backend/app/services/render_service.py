@@ -32,6 +32,7 @@ class RenderService:
         remotion_command: str | None = None,
         remotion_timeout_seconds: float = 300,
         public_base_url: str = "http://127.0.0.1:8017",
+        render_callback_base_url: str | None = None,
         output_storage=None,
         cleanup_local_output: bool = False,
         eci_launcher: EciLauncher | None = None,
@@ -44,6 +45,7 @@ class RenderService:
         self.remotion_command = remotion_command
         self.remotion_timeout_seconds = remotion_timeout_seconds
         self.public_base_url = public_base_url
+        self.render_callback_base_url = (render_callback_base_url or public_base_url).rstrip("/")
         self.output_storage = output_storage
         self.cleanup_local_output = cleanup_local_output
         self.eci_launcher = eci_launcher
@@ -145,7 +147,7 @@ class RenderService:
 
         launch_request = EciLaunchRequest(
             job=job,
-            manifest_url=manifest_url,
+            manifest_url=self._manifest_worker_url(job.manifest_oss_key, manifest_url),
             manifest_oss_key=job.manifest_oss_key,
             output_oss_key=job.output_oss_key,
             callback_url=self._callback_url(job.id),
@@ -209,7 +211,12 @@ class RenderService:
         return self.manifest_path(job_id).read_text(encoding="utf-8")
 
     def _callback_url(self, job_id: str) -> str:
-        return f"{self.public_base_url.rstrip('/')}/api/v1/render-jobs/{job_id}/callback"
+        return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/callback"
 
     def _heartbeat_url(self, job_id: str) -> str:
-        return f"{self.public_base_url.rstrip('/')}/api/v1/render-jobs/{job_id}/heartbeat"
+        return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/heartbeat"
+
+    def _manifest_worker_url(self, manifest_oss_key: str | None, fallback_url: str) -> str:
+        if manifest_oss_key and hasattr(self.output_storage, "access_url"):
+            return self.output_storage.access_url(manifest_oss_key)
+        return fallback_url
