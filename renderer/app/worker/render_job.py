@@ -122,7 +122,13 @@ def _post_json(url: str | None, payload: dict) -> None:
     if not url:
         return
     body = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 Chrome/126 Safari/537.36"
+        ),
+    }
     token = os.getenv("VIDEO_MAKER_RENDER_CALLBACK_TOKEN")
     if token:
         headers["X-Render-Callback-Token"] = token
