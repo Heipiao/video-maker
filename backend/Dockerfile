@@ -12,7 +12,6 @@ RUN apt-get update \
 
 COPY backend/pyproject.toml ./
 COPY backend/app ./app
-COPY demo ./demo
 
 RUN pip install --upgrade pip \
     && pip install .
