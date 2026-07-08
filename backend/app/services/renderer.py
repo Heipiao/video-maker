@@ -53,7 +53,7 @@ class RemotionRenderer(Renderer):
         outputs_dir: Path,
         command: str | None,
         timeout_seconds: float = 300,
-        public_base_url: str = "http://127.0.0.1:8000",
+        public_base_url: str = "http://127.0.0.1:8017",
         output_storage=None,
         cleanup_local_output: bool = False,
     ) -> None:

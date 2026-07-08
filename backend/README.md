@@ -16,7 +16,7 @@ From this directory:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-VIDEO_MAKER_STORAGE_DIR=../storage uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+VIDEO_MAKER_STORAGE_DIR=../storage uvicorn app.main:app --reload --host 0.0.0.0 --port 8017
 ```
 
 ## Test

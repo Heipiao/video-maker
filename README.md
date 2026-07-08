@@ -26,10 +26,10 @@ Legacy scaffold code was moved to `docs/archive/legacy-backend-scaffold`.
 Default URL:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8017
 ```
 
-For the local 8001 demo:
+For another local demo port:
 
 ```bash
 PORT=8001 ./scripts/start.sh

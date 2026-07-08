@@ -31,7 +31,7 @@ class RenderService:
         outputs_dir: Path,
         remotion_command: str | None = None,
         remotion_timeout_seconds: float = 300,
-        public_base_url: str = "http://127.0.0.1:8000",
+        public_base_url: str = "http://127.0.0.1:8017",
         output_storage=None,
         cleanup_local_output: bool = False,
         eci_launcher: EciLauncher | None = None,

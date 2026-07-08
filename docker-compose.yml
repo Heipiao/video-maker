@@ -4,10 +4,10 @@ services:
       context: backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8017:8017"
     environment:
       VIDEO_MAKER_STORAGE_DIR: /app/storage
-      VIDEO_MAKER_PUBLIC_BASE_URL: http://localhost:8000
+      VIDEO_MAKER_PUBLIC_BASE_URL: http://localhost:8017
     volumes:
       - ./storage:/app/storage
 

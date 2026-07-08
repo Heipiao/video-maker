@@ -175,7 +175,7 @@ const Vignette: React.FC = () => (
 
 const normalizeUrl = (url: string) => {
   if (url.startsWith('/')) {
-    return `${process.env.REMOTION_PUBLIC_BASE_URL || 'http://127.0.0.1:8000'}${url}`;
+    return `${process.env.REMOTION_PUBLIC_BASE_URL || 'http://127.0.0.1:8017'}${url}`;
   }
   return url;
 };
