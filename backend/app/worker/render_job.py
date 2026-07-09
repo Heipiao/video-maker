@@ -102,8 +102,9 @@ def _render(manifest_path: Path, output_path: Path, job_id: str) -> None:
         env=env,
     )
     if completed.returncode != 0:
-        stderr = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(stderr[:2000] or f"Remotion command exited {completed.returncode}")
+        output = "\n".join(part for part in [completed.stderr, completed.stdout] if part).strip()
+        detail = output[:8000] if output else f"Remotion command exited {completed.returncode}"
+        raise RuntimeError(f"Remotion command failed: {command}\n{detail}")
     if not output_path.exists() or output_path.stat().st_size <= 0:
         raise RuntimeError("Remotion did not create a non-empty MP4 output")
 
