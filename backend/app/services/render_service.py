@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from app.models.render import RenderJob, RenderJobStatus
@@ -113,16 +114,16 @@ class RenderService:
         if job.attempt_count >= max(job.max_attempts, self.eci_max_attempts):
             raise RemoteRenderError("Render job has reached max ECI attempts")
 
-        manifest_path = self.manifest_path(job.id)
-        if not manifest_path.exists():
-            ManifestRenderer(self.outputs_dir).render(job, spec)
-
         job.renderer = "eci"
         job.status = RenderJobStatus.provisioning
         job.error = None
         job.attempt_count += 1
         job.max_attempts = self.eci_max_attempts
         job.started_at = job.started_at or datetime.now(timezone.utc)
+
+        worker_spec = self._worker_spec(spec)
+        ManifestRenderer(self.outputs_dir).render(job, worker_spec)
+        manifest_path = self.manifest_path(job.id)
 
         manifest_object_key = f"jobs/{job.id}/manifest.json"
         output_object_key = f"jobs/{job.id}/output.mp4"
@@ -220,3 +221,25 @@ class RenderService:
         if self.render_callback_base_url:
             return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/manifest"
         return fallback_url
+
+    def _worker_spec(self, spec):
+        worker_spec = spec.model_copy(deep=True)
+        worker_spec.assets = [
+            asset.__class__.model_validate(
+                {**asset.model_dump(mode="json"), "url": self._worker_asset_url(str(asset.url))}
+            )
+            for asset in worker_spec.assets
+        ]
+        return worker_spec
+
+    def _worker_asset_url(self, asset_url: str) -> str:
+        if not self.public_base_url or not self.render_callback_base_url:
+            return asset_url
+        source = urlsplit(asset_url)
+        public = urlsplit(self.public_base_url)
+        target = urlsplit(self.render_callback_base_url)
+        if not source.netloc or not public.netloc or not target.netloc:
+            return asset_url
+        if source.netloc != public.netloc:
+            return asset_url
+        return urlunsplit((target.scheme, target.netloc, source.path, source.query, source.fragment))

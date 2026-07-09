@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -502,6 +503,7 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
     monkeypatch.setenv("VIDEO_MAKER_OSS_PUBLIC_BASE_URL", "https://cdn.example.com")
     monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
+    monkeypatch.setenv("VIDEO_MAKER_PUBLIC_BASE_URL", "https://video-maker.example.com")
     monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID", "aliyun-key")
     monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET", "aliyun-secret")
     monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
@@ -546,7 +548,15 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     monkeypatch.setattr("app.services.output_storage.urllib.request.urlopen", fake_urlopen)
     monkeypatch.setattr("app.api.routes.EciLauncher", FakeEciLauncher)
     client = make_client(tmp_path, monkeypatch)
-    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    photo = client.post(
+        "/api/v1/assets",
+        json={
+            "type": "photo",
+            "url": "http://video-maker.example.com/uploads/ceremony.jpg",
+            "tag": "ceremony",
+            "caption": "The ceremony",
+        },
+    ).json()["asset"]
     spec = client.post(
         "/api/v1/video-specs/generate",
         json={
@@ -578,6 +588,10 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     )
     assert uploads[0]["headers"]["Content-type"] == "application/json"
     assert b'"job_id":' in uploads[0]["data"]
+    uploaded_manifest = json.loads(uploads[0]["data"])
+    assert uploaded_manifest["spec"]["assets"][0]["url"] == (
+        "http://10.0.0.8:8017/uploads/ceremony.jpg"
+    )
     assert launch_requests[0].manifest_url == (
         f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/manifest"
     )
