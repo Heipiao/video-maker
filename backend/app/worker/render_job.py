@@ -90,6 +90,8 @@ def _render(manifest_path: Path, output_path: Path, job_id: str) -> None:
     )
     env = os.environ.copy()
     env["REMOTION_PUBLIC_BASE_URL"] = os.getenv("VIDEO_MAKER_PUBLIC_BASE_URL", "")
+    env["REMOTION_ASSET_REWRITE_FROM"] = os.getenv("VIDEO_MAKER_ASSET_REWRITE_FROM", "")
+    env["REMOTION_ASSET_REWRITE_TO"] = os.getenv("VIDEO_MAKER_ASSET_REWRITE_TO", "")
     completed = subprocess.run(
         shlex.split(command),
         cwd=Path.cwd(),

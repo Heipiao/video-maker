@@ -114,6 +114,8 @@ class EciLauncher:
             "VIDEO_MAKER_PUBLIC_BASE_URL": (
                 self.settings.render_callback_base_url or self.settings.public_base_url
             ),
+            "VIDEO_MAKER_ASSET_REWRITE_FROM": self.settings.public_base_url,
+            "VIDEO_MAKER_ASSET_REWRITE_TO": self.settings.render_callback_base_url,
             "VIDEO_MAKER_OSS_ENDPOINT": self.settings.oss_endpoint,
             "VIDEO_MAKER_OSS_BUCKET": self.settings.oss_bucket,
             "VIDEO_MAKER_OSS_ACCESS_KEY_ID": self.settings.oss_access_key_id,

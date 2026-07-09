@@ -488,6 +488,8 @@ def test_eci_launcher_uses_internal_base_url_for_relative_assets(tmp_path, monke
 
     env = {item.key: item.value for item in sdk_request.container[0].environment_var}
     assert env["VIDEO_MAKER_PUBLIC_BASE_URL"] == "http://10.0.0.8:8017"
+    assert env["VIDEO_MAKER_ASSET_REWRITE_FROM"] == "https://video-maker.example.com"
+    assert env["VIDEO_MAKER_ASSET_REWRITE_TO"] == "http://10.0.0.8:8017"
 
 
 def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
