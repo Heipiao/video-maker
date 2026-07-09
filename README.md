@@ -85,6 +85,6 @@ VIDEO_MAKER_OSS_PUBLIC_BASE_URL=https://ai-video-render.oss-cn-hangzhou.aliyuncs
 ```
 
 `VIDEO_MAKER_RENDER_CALLBACK_BASE_URL` is used only by renderer workers for
-heartbeat/callback. `VIDEO_MAKER_OSS_ENDPOINT` is used for API/worker OSS
-upload and download. `VIDEO_MAKER_OSS_PUBLIC_BASE_URL` is still returned to
-users as the final MP4 URL.
+manifest download, heartbeat, and callback. `VIDEO_MAKER_OSS_ENDPOINT` is used
+for API/worker OSS uploads. `VIDEO_MAKER_OSS_PUBLIC_BASE_URL` is still returned
+to users as the final MP4 URL.

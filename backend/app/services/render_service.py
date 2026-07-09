@@ -147,7 +147,7 @@ class RenderService:
 
         launch_request = EciLaunchRequest(
             job=job,
-            manifest_url=self._manifest_worker_url(job.manifest_oss_key, manifest_url),
+            manifest_url=self._manifest_worker_url(job.id, manifest_url),
             manifest_oss_key=job.manifest_oss_key,
             output_oss_key=job.output_oss_key,
             callback_url=self._callback_url(job.id),
@@ -216,7 +216,7 @@ class RenderService:
     def _heartbeat_url(self, job_id: str) -> str:
         return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/heartbeat"
 
-    def _manifest_worker_url(self, manifest_oss_key: str | None, fallback_url: str) -> str:
-        if manifest_oss_key and hasattr(self.output_storage, "access_url"):
-            return self.output_storage.access_url(manifest_oss_key)
+    def _manifest_worker_url(self, job_id: str, fallback_url: str) -> str:
+        if self.render_callback_base_url:
+            return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/manifest"
         return fallback_url

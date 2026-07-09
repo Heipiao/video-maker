@@ -543,8 +543,7 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     assert uploads[0]["headers"]["Content-type"] == "application/json"
     assert b'"job_id":' in uploads[0]["data"]
     assert launch_requests[0].manifest_url == (
-        f"https://wedding-video.oss-cn-test-internal.aliyuncs.com/"
-        f"wedding-videos/jobs/{job['id']}/manifest.json"
+        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/manifest"
     )
     assert launch_requests[0].callback_url == (
         f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/callback"
