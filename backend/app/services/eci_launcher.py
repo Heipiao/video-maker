@@ -61,7 +61,7 @@ class EciLauncher:
         container = eci_models.CreateContainerGroupRequestContainer(
             name="renderer",
             image=self.settings.eci_renderer_image,
-            image_pull_policy="IfNotPresent",
+            image_pull_policy="Always",
             cpu=self.settings.eci_cpu,
             memory=self.settings.eci_memory,
             environment_var=env,
@@ -87,7 +87,7 @@ class EciLauncher:
             container_group_name=self._container_group_name(request.job),
             client_token=f"render-{request.job.id}-{request.job.attempt_count}",
             restart_policy="Never",
-            auto_match_image_cache=True,
+            auto_match_image_cache=False,
             cpu=self.settings.eci_cpu,
             memory=self.settings.eci_memory,
             active_deadline_seconds=self.settings.eci_active_deadline_seconds,

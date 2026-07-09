@@ -447,9 +447,11 @@ def test_eci_launcher_builds_spot_container_group_request(tmp_path, monkeypatch)
     assert sdk_request.active_deadline_seconds == 1800
     assert sdk_request.spot_strategy == "SpotAsPriceGo"
     assert sdk_request.strict_spot is False
+    assert sdk_request.auto_match_image_cache is False
     assert sdk_request.ephemeral_storage == 50
     container = sdk_request.container[0]
     assert container.image == "registry/render:latest"
+    assert container.image_pull_policy == "Always"
     assert container.command == ["python", "-m", "app.worker.render_job"]
     env = {item.key: item.value for item in container.environment_var}
     assert env["VIDEO_MAKER_JOB_ID"] == "job-1234567890"
