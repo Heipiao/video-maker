@@ -456,6 +456,40 @@ def test_eci_launcher_builds_spot_container_group_request(tmp_path, monkeypatch)
     assert env["VIDEO_MAKER_RENDER_CALLBACK_TOKEN"] == "callback-token"
 
 
+def test_eci_launcher_uses_internal_base_url_for_relative_assets(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_STORAGE_DIR", str(tmp_path))
+    monkeypatch.setenv("VIDEO_MAKER_PUBLIC_BASE_URL", "https://video-maker.example.com")
+    monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_BASE_URL", "http://10.0.0.8:8017")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test-internal.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
+    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID", "aliyun-key")
+    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET", "aliyun-secret")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_SECURITY_GROUP_ID", "sg-test")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_RENDERER_IMAGE", "registry/render:latest")
+    settings_module.get_settings.cache_clear()
+    settings = settings_module.get_settings()
+    job = RenderJob(id="job-1234567890", spec_id="spec-1", attempt_count=1)
+
+    sdk_request = EciLauncher(settings).build_create_request(
+        EciLaunchRequest(
+            job=job,
+            manifest_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/manifest",
+            manifest_oss_key="wedding-videos/jobs/job-123/manifest.json",
+            output_oss_key="wedding-videos/jobs/job-123/output.mp4",
+            callback_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/callback",
+            heartbeat_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/heartbeat",
+            callback_token="callback-token",
+        )
+    )
+
+    env = {item.key: item.value for item in sdk_request.container[0].environment_var}
+    assert env["VIDEO_MAKER_PUBLIC_BASE_URL"] == "http://10.0.0.8:8017"
+
+
 def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     tmp_path, monkeypatch
 ) -> None:
