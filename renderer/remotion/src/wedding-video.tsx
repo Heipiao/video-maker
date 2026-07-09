@@ -176,8 +176,18 @@ const Vignette: React.FC = () => (
 const normalizeUrl = (url: string) => {
   const rewriteFrom = process.env.REMOTION_ASSET_REWRITE_FROM?.replace(/\/$/, '');
   const rewriteTo = process.env.REMOTION_ASSET_REWRITE_TO?.replace(/\/$/, '');
-  if (rewriteFrom && rewriteTo && url.startsWith(`${rewriteFrom}/`)) {
-    return `${rewriteTo}${url.slice(rewriteFrom.length)}`;
+  if (rewriteFrom && rewriteTo) {
+    try {
+      const source = new URL(url);
+      const from = new URL(rewriteFrom);
+      if (source.host === from.host) {
+        return `${rewriteTo}${source.pathname}${source.search}${source.hash}`;
+      }
+    } catch {
+      if (url.startsWith(`${rewriteFrom}/`)) {
+        return `${rewriteTo}${url.slice(rewriteFrom.length)}`;
+      }
+    }
   }
   if (url.startsWith('/')) {
     return `${process.env.REMOTION_PUBLIC_BASE_URL || 'http://127.0.0.1:8017'}${url}`;
