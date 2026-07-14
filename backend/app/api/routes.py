@@ -40,8 +40,9 @@ from app.services.demo_asset_catalog import list_demo_assets
 from app.services.eci_launcher import EciLauncher
 from app.services.file_store import RecordNotFoundError
 from app.services.job_store import FileJobStore, JobNotFoundError
-from app.services.output_storage import AliyunOssOutputStorage, LocalOutputStorage
+from app.services.output_storage import AliyunOssOutputStorage
 from app.services.render_service import (
+    InvalidRenderModeError,
     InvalidRenderCallbackError,
     RemoteRenderError,
     RenderService,
@@ -102,7 +103,7 @@ def get_render_service(
             timeout_seconds=settings.oss_timeout_seconds,
         )
         if settings.oss_enabled
-        else LocalOutputStorage()
+        else None
     )
     return RenderService(
         FileJobStore(settings.jobs_dir),
@@ -337,6 +338,22 @@ def render_job_with_remotion(
     except SpecNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video spec not found") from exc
     except RemotionRendererError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/render-jobs/{job_id}/start", response_model=RenderJobResponse)
+def start_render_job(
+    job_id: str,
+    settings: Settings = Depends(get_settings),
+    render_service: RenderService = Depends(get_render_service),
+) -> RenderJobResponse:
+    try:
+        return RenderJobResponse(job=render_service.start_render(job_id, settings.render_mode))
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc
+    except SpecNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video spec not found") from exc
+    except (InvalidRenderModeError, RemoteRenderError, RemotionRendererError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 

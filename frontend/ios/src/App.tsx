@@ -34,11 +34,12 @@ import {
   fetchCatalog,
   fetchDemoAssets,
   generateVideoSpec,
+  getRenderJob,
   normalizeLocalExportUrl,
   registerAsset,
-  renderWithRemotion,
   RenderJob,
   saveVideoSpec,
+  startConfiguredRender,
   Template,
   uploadFile,
   VideoSpec,
@@ -96,6 +97,8 @@ type VowFrameExportModuleType = {
 };
 
 const VowFrameExportModule = NativeModules.VowFrameExportModule as VowFrameExportModuleType | undefined;
+const RENDER_POLL_INTERVAL_MS = 3000;
+const RENDER_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 const Tab = createBottomTabNavigator<RootTabs>();
 const Stack = createNativeStackNavigator<CreateStackParams>();
@@ -814,6 +817,26 @@ function InterviewScreen({navigation}: NativeStackScreenProps<CreateStackParams,
   );
 }
 
+function sleep(ms: number) {
+  return new Promise<void>(resolve => setTimeout(() => resolve(), ms));
+}
+
+async function waitForReadyJob(job: RenderJob) {
+  const deadline = Date.now() + RENDER_POLL_TIMEOUT_MS;
+  let latest = job;
+  while (latest.status !== 'ready') {
+    if (['failed', 'preempted', 'expired'].includes(latest.status)) {
+      throw new Error(latest.error || `Render job ${latest.status}`);
+    }
+    if (Date.now() >= deadline) {
+      throw new Error('Render timed out before the MP4 was ready.');
+    }
+    await sleep(RENDER_POLL_INTERVAL_MS);
+    latest = (await getRenderJob(job.id)).job;
+  }
+  return latest;
+}
+
 function RenderingResultScreen({navigation}: NativeStackScreenProps<CreateStackParams, 'RenderingResult'>) {
   const {state, setState} = useAppState();
   const [error, setError] = useState<string | null>(null);
@@ -862,12 +885,13 @@ function RenderingResultScreen({navigation}: NativeStackScreenProps<CreateStackP
       const updatedSpec = patchSpecForInterview(generated.spec, option, state);
       const saved = await saveVideoSpec(updatedSpec);
       const manifestJob = await createRenderJob(saved.spec.id);
-      const rendered = await renderWithRemotion(manifestJob.job.id);
+      const started = await startConfiguredRender(manifestJob.job.id);
+      const readyJob = started.job.status === 'ready' ? started.job : await waitForReadyJob(started.job);
       setState(current => ({
         ...current,
         spec: saved.spec,
-        renderJob: rendered.job,
-        renderStage: rendered.job.status === 'ready' ? 'ready' : 'failed',
+        renderJob: readyJob,
+        renderStage: 'ready',
       }));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Unable to render video.';

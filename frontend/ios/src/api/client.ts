@@ -69,7 +69,7 @@ export type RenderJob = {
   id: string;
   spec_id: string;
   renderer: string;
-  status: 'queued' | 'rendering' | 'ready' | 'failed';
+  status: 'queued' | 'provisioning' | 'rendering' | 'uploading' | 'ready' | 'failed' | 'preempted' | 'retrying' | 'expired';
   manifest_url?: string | null;
   output_url?: string | null;
   error?: string | null;
@@ -206,6 +206,16 @@ export async function renderWithRemotion(jobId: string) {
   return request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}/remotion`, {
     method: 'POST',
   });
+}
+
+export async function startConfiguredRender(jobId: string) {
+  return request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}/start`, {
+    method: 'POST',
+  });
+}
+
+export async function getRenderJob(jobId: string) {
+  return request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}`);
 }
 
 export function normalizeLocalExportUrl(url?: string | null) {

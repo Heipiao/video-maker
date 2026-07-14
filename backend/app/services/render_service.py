@@ -24,6 +24,10 @@ class InvalidRenderCallbackError(Exception):
     pass
 
 
+class InvalidRenderModeError(Exception):
+    pass
+
+
 class RenderService:
     def __init__(
         self,
@@ -102,6 +106,14 @@ class RenderService:
             job.touch()
             self.job_store.save(job)
             raise
+
+    def start_render(self, job_id: str, render_mode: str) -> RenderJob:
+        mode = render_mode.strip().lower()
+        if mode == "local":
+            return self.render_with_remotion(job_id)
+        if mode == "eci":
+            return self.dispatch_to_eci(job_id)
+        raise InvalidRenderModeError(f"Unknown render mode: {render_mode}")
 
     def dispatch_to_eci(self, job_id: str) -> RenderJob:
         if self.eci_launcher is None:

@@ -310,6 +310,37 @@ def test_remotion_render_updates_job_and_serves_video(tmp_path, monkeypatch) -> 
     assert video.content == b"fake mp4"
 
 
+def test_configured_start_uses_local_render_mode(tmp_path, monkeypatch) -> None:
+    command = (
+        f"{sys.executable} -c "
+        "\"import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes(b'fake mp4')\" "
+        "{output_path}"
+    )
+    monkeypatch.setenv("VIDEO_MAKER_REMOTION_COMMAND", command)
+    monkeypatch.setenv("VIDEO_MAKER_RENDER_MODE", "local")
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "16:9",
+        },
+    ).json()["spec"]
+    job = client.post("/api/v1/render-jobs", json={"spec_id": spec["id"]}).json()["job"]
+
+    response = client.post(f"/api/v1/render-jobs/{job['id']}/start")
+
+    assert response.status_code == 200
+    rendered_job = response.json()["job"]
+    assert rendered_job["status"] == "ready"
+    assert rendered_job["renderer"] == "remotion"
+    assert rendered_job["output_url"] == f"/outputs/{job['id']}.mp4"
+
+
 def test_remotion_render_uploads_output_to_oss_when_enabled(tmp_path, monkeypatch) -> None:
     command = (
         f"{sys.executable} -c "
@@ -654,6 +685,27 @@ def test_eci_render_missing_config_returns_422(tmp_path, monkeypatch) -> None:
     assert "VIDEO_MAKER_ECI_RENDERER_IMAGE" in response.json()["detail"]
     failed_job = client.get(f"/api/v1/render-jobs/{job['id']}").json()["job"]
     assert failed_job["status"] == "failed"
+
+
+def test_eci_render_requires_oss_storage(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "false")
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "16:9",
+        },
+    ).json()["spec"]
+    job = client.post("/api/v1/render-jobs", json={"spec_id": spec["id"]}).json()["job"]
+
+    response = client.post(f"/api/v1/render-jobs/{job['id']}/eci")
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "OSS output storage is not configured"
 
 
 def test_render_job_heartbeat_and_callback_require_token(tmp_path, monkeypatch) -> None:
