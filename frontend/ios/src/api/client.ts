@@ -1,4 +1,6 @@
-export const API_BASE_URL = 'http://127.0.0.1:8001';
+const runtimeConfig = globalThis as typeof globalThis & {VOWFRAME_API_BASE_URL?: string};
+
+export const API_BASE_URL = runtimeConfig.VOWFRAME_API_BASE_URL || 'https://video-maker.aigcteacher.top';
 
 export type AssetType = 'photo' | 'video' | 'music';
 
@@ -208,10 +210,23 @@ export async function renderWithRemotion(jobId: string) {
   });
 }
 
-export async function startConfiguredRender(jobId: string) {
-  return request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}/start`, {
+export async function dispatchEciRender(jobId: string) {
+  return request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}/eci`, {
     method: 'POST',
   });
+}
+
+export async function startConfiguredRender(jobId: string) {
+  try {
+    return await request<{job: RenderJob}>(`/api/v1/render-jobs/${jobId}/start`, {
+      method: 'POST',
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Not Found')) {
+      return dispatchEciRender(jobId);
+    }
+    throw error;
+  }
 }
 
 export async function getRenderJob(jobId: string) {

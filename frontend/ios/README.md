@@ -20,4 +20,8 @@ Set the backend URL before running on device:
 export VOWFRAME_API_BASE_URL=http://127.0.0.1:8001
 ```
 
-For iOS Simulator, `http://127.0.0.1:8001` works when the backend runs on the same Mac.
+The app defaults to `https://video-maker.aigcteacher.top`.
+
+For local development, set `globalThis.VOWFRAME_API_BASE_URL` before the app imports
+`src/api/client.ts`, or temporarily edit the API base URL. For iOS Simulator,
+`http://127.0.0.1:8001` works when the backend runs on the same Mac.
