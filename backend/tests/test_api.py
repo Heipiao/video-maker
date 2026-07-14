@@ -6,11 +6,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.api import routes as routes_module
 from app.core import settings as settings_module
 from app.main import create_app
 from app.models.asset import Asset, AssetType
 from app.models.render import RenderJob
 from app.models.spec import TimelineScene, WeddingVideoSpec
+from app.services.agent_llm import AgentDecision
 from app.services import demo_asset_catalog
 from app.services.eci_launcher import EciLaunchResult, EciLaunchRequest, EciLauncher
 
@@ -296,6 +298,58 @@ def test_generate_save_render_and_manifest_flow(tmp_path, monkeypatch) -> None:
     assert manifest["spec"]["style"]["primary_color"] == "#112233"
     assert manifest["spec"]["timeline"][1]["caption"] == "Edited ceremony caption"
     assert len(manifest["spec"]["assets"]) == 3
+
+
+def test_generate_video_spec_uses_llm_for_initial_story(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo_a = create_asset(client, "photo", "ceremony", "The ceremony")
+    photo_b = create_asset(client, "photo", "rings", "The rings")
+
+    class FirstStoryProvider:
+        def complete(self, messages: list[dict], tools: list[dict]) -> AgentDecision:
+            spec = WeddingVideoSpec(
+                id="llm-spec",
+                template_id="classic_wedding",
+                title="LLM Story",
+                aspect_ratio="16:9",
+                duration_seconds=13,
+                assets=[Asset.model_validate(photo_a), Asset.model_validate(photo_b)],
+                timeline=[
+                    TimelineScene(type="title", duration_seconds=3, text="LLM Story"),
+                    TimelineScene(
+                        type="photo",
+                        duration_seconds=6,
+                        asset_id=photo_b["id"],
+                        caption="LLM chose rings first",
+                    ),
+                    TimelineScene(type="ending", duration_seconds=4, text="Thank you"),
+                ],
+            )
+            return AgentDecision(
+                assistant_message="story ready",
+                should_call_generate_video=True,
+                video_spec=spec,
+            )
+
+    client.app.dependency_overrides[routes_module.get_llm_provider] = lambda: FirstStoryProvider()
+    try:
+        generated = client.post(
+            "/api/v1/video-specs/generate",
+            json={
+                "template_id": "classic_wedding",
+                "title": "Alice & Bob",
+                "asset_ids": [photo_a["id"], photo_b["id"]],
+                "aspect_ratio": "16:9",
+            },
+        )
+    finally:
+        client.app.dependency_overrides.clear()
+
+    assert generated.status_code == 200
+    spec = generated.json()["spec"]
+    assert spec["title"] == "Alice & Bob"
+    assert spec["timeline"][1]["asset_id"] == photo_b["id"]
+    assert spec["timeline"][1]["caption"] == "LLM chose rings first"
 
 
 def test_remotion_render_without_command_returns_clear_error(tmp_path, monkeypatch) -> None:

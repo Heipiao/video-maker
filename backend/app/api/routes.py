@@ -80,6 +80,17 @@ def get_advisor_service(asset_store: FileAssetStore = Depends(get_asset_store)) 
     return AdvisorService(asset_store)
 
 
+def get_llm_provider(settings: Settings = Depends(get_settings)):
+    if settings.agent_llm_provider.lower() == "mock":
+        return MockLLMProvider()
+    return DeepSeekLLMProvider(
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        model=settings.deepseek_model,
+        timeout_seconds=settings.deepseek_timeout_seconds,
+    )
+
+
 def get_spec_service(
     asset_store: FileAssetStore = Depends(get_asset_store),
     spec_store: FileSpecStore = Depends(get_spec_store),
@@ -161,17 +172,8 @@ def get_agent_service(
     spec_store: FileSpecStore = Depends(get_spec_store),
     spec_service: VideoSpecService = Depends(get_spec_service),
     render_service: RenderService = Depends(get_render_service),
+    llm_provider=Depends(get_llm_provider),
 ) -> AgentService:
-    llm_provider = (
-        MockLLMProvider()
-        if settings.agent_llm_provider.lower() == "mock"
-        else DeepSeekLLMProvider(
-            api_key=settings.deepseek_api_key,
-            base_url=settings.deepseek_base_url,
-            model=settings.deepseek_model,
-            timeout_seconds=settings.deepseek_timeout_seconds,
-        )
-    )
     generate_video_tool = GenerateVideoTool(
         spec_service=spec_service,
         render_service=render_service,
@@ -240,9 +242,10 @@ def get_asset(
 def generate_video_spec(
     request: GenerateVideoSpecRequest,
     spec_service: VideoSpecService = Depends(get_spec_service),
+    llm_provider=Depends(get_llm_provider),
 ) -> VideoSpecResponse:
     try:
-        return VideoSpecResponse(spec=spec_service.generate_spec(request))
+        return VideoSpecResponse(spec=spec_service.generate_spec(request, llm_provider))
     except UnknownTemplateError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
