@@ -11,6 +11,7 @@ from app.main import create_app
 from app.models.asset import Asset, AssetType
 from app.models.render import RenderJob
 from app.models.spec import TimelineScene, WeddingVideoSpec
+from app.services import demo_asset_catalog
 from app.services.eci_launcher import EciLaunchResult, EciLaunchRequest, EciLauncher
 
 
@@ -83,6 +84,50 @@ def test_builtin_demo_assets_are_served(tmp_path, monkeypatch) -> None:
     assert music[0]["url"].endswith(".mp3")
     image = client.get(photos[0]["url"])
     assert image.status_code == 200
+
+
+def test_builtin_music_can_use_configured_cdn_base_url(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(demo_asset_catalog, "project_root", lambda: tmp_path)
+    monkeypatch.setenv("VIDEO_MAKER_BUILTIN_MUSIC_BASE_URL", "https://cdn.example.com/music")
+    demo_asset_catalog.list_demo_assets.cache_clear()
+    try:
+        client = make_client(tmp_path, monkeypatch)
+
+        response = client.get("/api/v1/demo-assets")
+
+        assert response.status_code == 200
+        music = [asset for asset in response.json()["assets"] if asset["type"] == "music"]
+        assert len(music) >= 6
+        assert music[0]["url"].startswith("https://cdn.example.com/music/")
+        assert music[0]["url"].endswith(".mp3")
+    finally:
+        demo_asset_catalog.list_demo_assets.cache_clear()
+
+
+def test_builtin_music_uses_signed_oss_url_without_public_base(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(demo_asset_catalog, "project_root", lambda: tmp_path)
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
+    monkeypatch.delenv("VIDEO_MAKER_BUILTIN_MUSIC_BASE_URL", raising=False)
+    demo_asset_catalog.list_demo_assets.cache_clear()
+    try:
+        client = make_client(tmp_path, monkeypatch)
+
+        response = client.get("/api/v1/demo-assets")
+
+        assert response.status_code == 200
+        music = [asset for asset in response.json()["assets"] if asset["type"] == "music"]
+        assert len(music) >= 6
+        assert music[0]["url"].startswith(
+            "https://wedding-video.oss-cn-test.aliyuncs.com/wedding-videos/builtin-music/"
+        )
+        assert "OSSAccessKeyId=oss-key" in music[0]["url"]
+        assert "Signature=" in music[0]["url"]
+    finally:
+        demo_asset_catalog.list_demo_assets.cache_clear()
 
 
 def test_create_and_fetch_asset(tmp_path, monkeypatch) -> None:

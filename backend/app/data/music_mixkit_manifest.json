@@ -1,0 +1,184 @@
+{
+  "source": "Mixkit Free Stock Music",
+  "source_page": "https://mixkit.co/free-stock-music/",
+  "license_page": "https://mixkit.co/license/",
+  "downloaded_at": "2026-07-05 Asia/Shanghai",
+  "license_note": "Mixkit page states free stock music tracks are royalty free and can be used with no attribution or sign up required. Keep this manifest for source tracking and re-check license terms before production distribution.",
+  "tracks": [
+    {
+      "id": "mixkit-657",
+      "mixkit_id": 657,
+      "title": "Wedding 01",
+      "artist": "Francisco Alvear",
+      "duration_label": "2:26",
+      "filename": "mixkit-657-wedding-01-francisco-alvear.mp3",
+      "asset_url": "https://assets.mixkit.co/music/657/657.mp3",
+      "tags": [
+        "film-score",
+        "reflective",
+        "emotional",
+        "harp",
+        "piano",
+        "wedding",
+        "nature"
+      ],
+      "wedding_use": [
+        "ceremony",
+        "vows",
+        "nostalgic_love_story",
+        "family_memory"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-657-wedding-01-francisco-alvear.mp3",
+      "duration_seconds": 145.778,
+      "size_bytes": 4668979,
+      "bit_rate": 256224
+    },
+    {
+      "id": "mixkit-659",
+      "mixkit_id": 659,
+      "title": "Romantic",
+      "artist": "Francisco Alvear",
+      "duration_label": "2:39",
+      "filename": "mixkit-659-romantic-francisco-alvear.mp3",
+      "asset_url": "https://assets.mixkit.co/music/659/659.mp3",
+      "tags": [
+        "film-score",
+        "romantic",
+        "reflective",
+        "double-bass",
+        "piano",
+        "wedding",
+        "human-drama"
+      ],
+      "wedding_use": [
+        "vows",
+        "couple_portrait",
+        "ending_card",
+        "romantic_story"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-659-romantic-francisco-alvear.mp3",
+      "duration_seconds": 158.589,
+      "size_bytes": 5074978,
+      "bit_rate": 256005
+    },
+    {
+      "id": "mixkit-493",
+      "mixkit_id": 493,
+      "title": "Beautiful Dream",
+      "artist": "Diego Nava",
+      "duration_label": "1:37",
+      "filename": "mixkit-493-beautiful-dream-diego-nava.mp3",
+      "asset_url": "https://assets.mixkit.co/music/493/493.mp3",
+      "tags": [
+        "jazz",
+        "romantic",
+        "melancholic",
+        "acoustic-guitar",
+        "drums",
+        "relaxation",
+        "love"
+      ],
+      "wedding_use": [
+        "engagement",
+        "garden_romance",
+        "soft_recap",
+        "warm_intro"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-493-beautiful-dream-diego-nava.mp3",
+      "duration_seconds": 97.019,
+      "size_bytes": 3104718,
+      "bit_rate": 256009
+    },
+    {
+      "id": "mixkit-614",
+      "mixkit_id": 614,
+      "title": "Silent Descent",
+      "artist": "Eugenio Mininni",
+      "duration_label": "2:40",
+      "filename": "mixkit-614-silent-descent-eugenio-mininni.mp3",
+      "asset_url": "https://assets.mixkit.co/music/614/614.mp3",
+      "tags": [
+        "film-score",
+        "reflective",
+        "melancholic",
+        "piano",
+        "strings",
+        "cinematic",
+        "melodic"
+      ],
+      "wedding_use": [
+        "cinematic_opening",
+        "memory_sequence",
+        "family_story",
+        "slow_montage"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-614-silent-descent-eugenio-mininni.mp3",
+      "duration_seconds": 160.385,
+      "size_bytes": 5134509,
+      "bit_rate": 256109
+    },
+    {
+      "id": "mixkit-580",
+      "mixkit_id": 580,
+      "title": "Sun and His Daughter",
+      "artist": "Eugenio Mininni",
+      "duration_label": "2:48",
+      "filename": "mixkit-580-sun-and-his-daughter-eugenio-mininni.mp3",
+      "asset_url": "https://assets.mixkit.co/music/580/580.mp3",
+      "tags": [
+        "world",
+        "atmospheric",
+        "reflective",
+        "percussion",
+        "synth",
+        "arthouse",
+        "drama"
+      ],
+      "wedding_use": [
+        "documentary_story",
+        "travel_couple",
+        "editorial_opening",
+        "reflective_montage"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-580-sun-and-his-daughter-eugenio-mininni.mp3",
+      "duration_seconds": 167.769,
+      "size_bytes": 5370774,
+      "bit_rate": 256102
+    },
+    {
+      "id": "mixkit-587",
+      "mixkit_id": 587,
+      "title": "Discover",
+      "artist": "Eugenio Mininni",
+      "duration_label": "2:24",
+      "filename": "mixkit-587-discover-eugenio-mininni.mp3",
+      "asset_url": "https://assets.mixkit.co/music/587/587.mp3",
+      "tags": [
+        "orchestral-pop",
+        "film-score",
+        "hopeful",
+        "reflective",
+        "piano",
+        "strings",
+        "intro",
+        "wedding"
+      ],
+      "wedding_use": [
+        "save_the_date",
+        "opening_title",
+        "wedding_intro",
+        "hopeful_montage"
+      ],
+      "source_url": "https://mixkit.co/free-stock-music/",
+      "local_path": "demo/assets/music_mixkit/mixkit-587-discover-eugenio-mininni.mp3",
+      "duration_seconds": 144.0,
+      "size_bytes": 4610388,
+      "bit_rate": 256132
+    }
+  ]
+}

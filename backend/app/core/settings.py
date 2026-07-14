@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     remotion_command: str | None = "node ../renderer/remotion/render.mjs {manifest_path} {output_path}"
     remotion_timeout_seconds: float = 300
     public_base_url: str = "http://127.0.0.1:8017"
+    builtin_music_base_url: str | None = None
     render_callback_base_url: str | None = None
     oss_enabled: bool = False
     oss_endpoint: str | None = None
