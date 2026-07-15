@@ -39,6 +39,8 @@ class WeddingVideoStyle(BaseModel):
     photo_motion: PhotoMotion = PhotoMotion.slow_zoom
     caption_position: CaptionPosition = CaptionPosition.bottom
     music_volume: float = Field(default=0.7, ge=0, le=1)
+    style_preset_id: str = Field(default="nostalgia_editorial", min_length=1)
+    filter_preset: str = Field(default="warm_grain", min_length=1)
 
 
 class TimelineScene(BaseModel):

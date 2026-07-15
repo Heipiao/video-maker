@@ -4,22 +4,19 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.core.settings import get_settings
+from app.db import create_schema
 from app.services.demo_asset_catalog import demo_assets_dir
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    demo_dir = demo_assets_dir()
-    if not demo_dir.exists():
-        demo_dir = settings.storage_dir / "demo-assets-empty"
-        demo_dir.mkdir(parents=True, exist_ok=True)
-
+    create_schema(settings)
     app = FastAPI(title="Video Maker API", version="0.1.0")
     app.include_router(router)
     app.mount("/static", StaticFiles(directory="app/static"), name="static")
     app.mount("/uploads", StaticFiles(directory=settings.uploads_dir), name="uploads")
     app.mount("/outputs", StaticFiles(directory=settings.outputs_dir), name="outputs")
-    app.mount("/demo-assets", StaticFiles(directory=demo_dir), name="demo-assets")
+    app.mount("/demo-assets", StaticFiles(directory=demo_assets_dir()), name="demo-assets")
 
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:

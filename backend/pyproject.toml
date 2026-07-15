@@ -5,9 +5,12 @@ description = "Backend service scaffold for video generation jobs"
 requires-python = ">=3.11"
 dependencies = [
   "alibabacloud_eci20180808>=2.1.0",
+  "alembic>=1.13.0",
   "fastapi>=0.115.0",
   "pydantic-settings>=2.6.0",
+  "pymysql>=1.1.1",
   "python-multipart>=0.0.12",
+  "sqlalchemy>=2.0.30",
   "uvicorn[standard]>=0.32.0",
 ]
 

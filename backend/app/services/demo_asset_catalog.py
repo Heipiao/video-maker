@@ -1,14 +1,7 @@
-import base64
-import hashlib
-import hmac
 import json
-import time
-import urllib.parse
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-from app.core.settings import get_settings
 
 
 def project_root() -> Path:
@@ -23,63 +16,9 @@ def demo_assets_dir() -> Path:
     return project_root() / "demo/assets"
 
 
-def music_manifest_path() -> Path:
-    root_manifest_path = project_root() / "demo/assets/music_mixkit/manifest.json"
-    if root_manifest_path.exists():
-        return root_manifest_path
-    return Path(__file__).resolve().parents[1] / "data/music_mixkit_manifest.json"
-
-
 def _demo_url(local_path: Path) -> str:
     relative = local_path.relative_to(demo_assets_dir())
     return f"/demo-assets/{relative.as_posix()}"
-
-
-def _builtin_music_url(track: dict[str, Any], local_path: Path) -> str | None:
-    settings = get_settings()
-    base_url = settings.builtin_music_base_url
-    if base_url:
-        return f"{base_url.rstrip('/')}/{track['filename']}"
-    if local_path.exists():
-        return _demo_url(local_path)
-    if (
-        settings.oss_endpoint
-        and settings.oss_bucket
-        and settings.oss_access_key_id
-        and settings.oss_access_key_secret
-    ):
-        return _signed_oss_music_url(track["filename"])
-    return track.get("asset_url")
-
-
-def _signed_oss_music_url(filename: str) -> str:
-    settings = get_settings()
-    object_key = f"{settings.oss_prefix.strip('/')}/builtin-music/{filename}"
-    endpoint = (settings.oss_endpoint or "").strip().rstrip("/")
-    parsed = urllib.parse.urlparse(endpoint)
-    scheme = parsed.scheme or "https"
-    netloc = parsed.netloc or parsed.path
-    expires = int(time.time()) + 60 * 60 * 24 * 365 * 10
-    resource = f"/{settings.oss_bucket}/{object_key}"
-    string_to_sign = f"GET\n\n\n{expires}\n{resource}"
-    signature = base64.b64encode(
-        hmac.new(
-            (settings.oss_access_key_secret or "").encode("utf-8"),
-            string_to_sign.encode("utf-8"),
-            hashlib.sha1,
-        ).digest()
-    ).decode("ascii")
-    query = urllib.parse.urlencode(
-        {
-            "OSSAccessKeyId": settings.oss_access_key_id,
-            "Expires": str(expires),
-            "Signature": signature,
-        }
-    )
-    return (
-        f"{scheme}://{settings.oss_bucket}.{netloc}/"
-        f"{urllib.parse.quote(object_key, safe='/')}?{query}"
-    )
 
 
 def _image_dimensions(local_path: Path) -> dict[str, int]:
@@ -135,7 +74,7 @@ def _image_dimensions(local_path: Path) -> dict[str, int]:
 def list_demo_assets() -> list[dict[str, Any]]:
     root = project_root()
     image_plan_path = root / "demo/data/image_generation_plan.demo.json"
-    manifest_path = music_manifest_path()
+    music_manifest_path = root / "demo/assets/music_mixkit/manifest.json"
 
     assets: list[dict[str, Any]] = []
     if image_plan_path.exists():
@@ -164,18 +103,15 @@ def list_demo_assets() -> list[dict[str, Any]]:
                 }
             )
 
-    if manifest_path.exists():
-        music_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if music_manifest_path.exists():
+        music_manifest = json.loads(music_manifest_path.read_text(encoding="utf-8"))
         for track in music_manifest.get("tracks", []):
             local_path = root / track["local_path"]
-            url = _builtin_music_url(track, local_path)
-            if not url:
-                continue
             assets.append(
                 {
                     "id": track["id"],
                     "type": "music",
-                    "url": url,
+                    "url": _demo_url(local_path),
                     "tag": track["tags"][0] if track.get("tags") else "music",
                     "tags": track.get("tags", []),
                     "title": track.get("title"),

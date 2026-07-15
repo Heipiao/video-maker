@@ -1,41 +1,35 @@
-import os
 import sys
-import json
+import urllib.parse
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app.api import routes as routes_module
 from app.core import settings as settings_module
 from app.main import create_app
 from app.models.asset import Asset, AssetType
 from app.models.render import RenderJob
 from app.models.spec import TimelineScene, WeddingVideoSpec
-from app.services.agent_llm import AgentDecision
-from app.services import demo_asset_catalog
 from app.services.eci_launcher import EciLaunchResult, EciLaunchRequest, EciLauncher
 
 
-CLOUD_ENV_DEFAULTS = {
-    "VIDEO_MAKER_OSS_ENABLED": "false",
-    "VIDEO_MAKER_OSS_ENDPOINT": "",
-    "VIDEO_MAKER_OSS_BUCKET": "",
-    "VIDEO_MAKER_OSS_ACCESS_KEY_ID": "",
-    "VIDEO_MAKER_OSS_ACCESS_KEY_SECRET": "",
-    "VIDEO_MAKER_OSS_PUBLIC_BASE_URL": "",
-    "VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID": "",
-    "VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET": "",
-    "VIDEO_MAKER_RENDER_CALLBACK_BASE_URL": "",
-    "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": "",
-}
-
-
 def make_client(tmp_path, monkeypatch) -> TestClient:
-    for key, value in CLOUD_ENV_DEFAULTS.items():
+    monkeypatch.setenv("VIDEO_MAKER_STORAGE_DIR", str(tmp_path))
+    local_defaults = {
+        "VIDEO_MAKER_DATABASE_URL": "",
+        "VIDEO_MAKER_OSS_ENABLED": "false",
+        "VIDEO_MAKER_OSS_ENDPOINT": "",
+        "VIDEO_MAKER_OSS_BUCKET": "",
+        "VIDEO_MAKER_OSS_ACCESS_KEY_ID": "",
+        "VIDEO_MAKER_OSS_ACCESS_KEY_SECRET": "",
+        "VIDEO_MAKER_OSS_PUBLIC_BASE_URL": "",
+        "VIDEO_MAKER_RENDER_MODE": "local",
+        "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": "",
+    }
+    for key, value in local_defaults.items():
         if key not in os.environ:
             monkeypatch.setenv(key, value)
-    monkeypatch.setenv("VIDEO_MAKER_STORAGE_DIR", str(tmp_path))
     settings_module.get_settings.cache_clear()
     return TestClient(create_app())
 
@@ -88,50 +82,6 @@ def test_builtin_demo_assets_are_served(tmp_path, monkeypatch) -> None:
     assert image.status_code == 200
 
 
-def test_builtin_music_can_use_configured_cdn_base_url(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(demo_asset_catalog, "project_root", lambda: tmp_path)
-    monkeypatch.setenv("VIDEO_MAKER_BUILTIN_MUSIC_BASE_URL", "https://cdn.example.com/music")
-    demo_asset_catalog.list_demo_assets.cache_clear()
-    try:
-        client = make_client(tmp_path, monkeypatch)
-
-        response = client.get("/api/v1/demo-assets")
-
-        assert response.status_code == 200
-        music = [asset for asset in response.json()["assets"] if asset["type"] == "music"]
-        assert len(music) >= 6
-        assert music[0]["url"].startswith("https://cdn.example.com/music/")
-        assert music[0]["url"].endswith(".mp3")
-    finally:
-        demo_asset_catalog.list_demo_assets.cache_clear()
-
-
-def test_builtin_music_uses_signed_oss_url_without_public_base(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(demo_asset_catalog, "project_root", lambda: tmp_path)
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
-    monkeypatch.delenv("VIDEO_MAKER_BUILTIN_MUSIC_BASE_URL", raising=False)
-    demo_asset_catalog.list_demo_assets.cache_clear()
-    try:
-        client = make_client(tmp_path, monkeypatch)
-
-        response = client.get("/api/v1/demo-assets")
-
-        assert response.status_code == 200
-        music = [asset for asset in response.json()["assets"] if asset["type"] == "music"]
-        assert len(music) >= 6
-        assert music[0]["url"].startswith(
-            "https://wedding-video.oss-cn-test.aliyuncs.com/wedding-videos/builtin-music/"
-        )
-        assert "OSSAccessKeyId=oss-key" in music[0]["url"]
-        assert "Signature=" in music[0]["url"]
-    finally:
-        demo_asset_catalog.list_demo_assets.cache_clear()
-
-
 def test_create_and_fetch_asset(tmp_path, monkeypatch) -> None:
     client = make_client(tmp_path, monkeypatch)
 
@@ -167,6 +117,133 @@ def test_create_and_fetch_asset(tmp_path, monkeypatch) -> None:
     )
     assert response.json()["asset"]["analysis_status"] == "ready"
     assert response.json()["asset"]["analysis"]["visual"]["people_count"] == 2
+
+
+def test_update_asset_tag_is_visible_in_project_assets(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    project = client.post(
+        "/api/v1/projects",
+        json={"couple_names": "Alice & Bob"},
+    ).json()["project"]
+    photo = create_asset(client, "photo", "wedding", "A reception photo")
+    linked = client.post(
+        f"/api/v1/projects/{project['id']}/assets",
+        json={"asset_id": photo["id"], "source": "owner_upload"},
+    )
+    assert linked.status_code == 201
+
+    updated = client.patch(
+        f"/api/v1/assets/{photo['id']}",
+        json={
+            "tag": "first look",
+            "analysis": {"visual": {"detected_tags": ["first look", "wedding"]}},
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["asset"]["tag"] == "first look"
+    assets = client.get(f"/api/v1/projects/{project['id']}/assets")
+    assert assets.status_code == 200
+    listed_asset = assets.json()["items"][0]["asset"]
+    assert listed_asset["tag"] == "first look"
+    assert "first look" in listed_asset["analysis"]["visual"]["detected_tags"]
+
+
+def test_project_invite_and_guest_asset_flow(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+
+    project_response = client.post(
+        "/api/v1/projects",
+        json={
+            "couple_names": "Alice & Bob",
+            "wedding_date": "2026-09-12",
+            "location": "Napa Valley",
+            "package_type": "guest_cam_recap",
+        },
+    )
+
+    assert project_response.status_code == 201
+    project = project_response.json()["project"]
+    assert len(project["invite_code"]) == 6
+    assert project["spec_id"] is None
+    assert project["couple_names"] == "Alice & Bob"
+
+    by_code = client.get(f"/api/v1/projects/by-code/{project['invite_code'].lower()}")
+    assert by_code.status_code == 200
+    assert by_code.json()["project"]["id"] == project["id"]
+
+    missing = client.get("/api/v1/projects/by-code/NOPE00")
+    assert missing.status_code == 404
+
+    photo = create_asset(client, "photo", "guest-pov", "A guest POV dance-floor clip")
+    linked = client.post(
+        f"/api/v1/projects/{project['id']}/assets",
+        json={
+            "asset_id": photo["id"],
+            "source": "guest_upload",
+            "guest_name": "Mia",
+            "note": "Shot from table 8",
+        },
+    )
+
+    assert linked.status_code == 201
+    item = linked.json()["item"]
+    assert item["asset"]["id"] == photo["id"]
+    assert item["asset"]["metadata"]["project_id"] == project["id"]
+    assert item["asset"]["metadata"]["source"] == "guest_upload"
+    assert item["guest_name"] == "Mia"
+
+    assets = client.get(f"/api/v1/projects/{project['id']}/assets")
+    assert assets.status_code == 200
+    assert [entry["asset"]["id"] for entry in assets.json()["items"]] == [photo["id"]]
+
+    deleted = client.delete(f"/api/v1/projects/{project['id']}/assets/{photo['id']}")
+    assert deleted.status_code == 204
+    assets = client.get(f"/api/v1/projects/{project['id']}/assets")
+    assert assets.status_code == 200
+    assert assets.json()["items"] == []
+
+    linked = client.post(
+        f"/api/v1/projects/{project['id']}/assets",
+        json={
+            "asset_id": photo["id"],
+            "source": "guest_upload",
+            "guest_name": "Mia",
+            "note": "Shot from table 8",
+        },
+    )
+    assert linked.status_code == 201
+    assets = client.get(f"/api/v1/projects/{project['id']}/assets")
+    assert assets.status_code == 200
+
+    generated = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob Guest Cam",
+            "asset_ids": [entry["asset"]["id"] for entry in assets.json()["items"]],
+            "aspect_ratio": "9:16",
+        },
+    )
+    assert generated.status_code == 200
+    assert generated.json()["spec"]["assets"][0]["id"] == photo["id"]
+
+
+def test_project_rejects_guest_music_asset(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    project = client.post(
+        "/api/v1/projects",
+        json={"couple_names": "Alice & Bob"},
+    ).json()["project"]
+    music = create_asset(client, "music", "romantic")
+
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/assets",
+        json={"asset_id": music["id"], "source": "guest_upload"},
+    )
+
+    assert response.status_code == 422
+    assert "Guest uploads can only be photo or video assets" in response.json()["detail"]
 
 
 def test_advisor_options_use_registered_assets(tmp_path, monkeypatch) -> None:
@@ -211,6 +288,100 @@ def test_upload_file_returns_served_url(tmp_path, monkeypatch) -> None:
     uploaded = client.get(payload["url"])
     assert uploaded.status_code == 200
     assert uploaded.content == b"fake-image-bytes"
+
+
+def test_upload_audio_file_returns_music_asset_type(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/uploads",
+        files={"file": ("first-dance.m4a", b"fake-audio-bytes", "audio/mp4")},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["filename"] == "first-dance.m4a"
+    assert payload["content_type"] == "audio/mp4"
+    assert payload["size_bytes"] == len(b"fake-audio-bytes")
+    assert payload["suggested_asset_type"] == "music"
+
+    uploaded = client.get(payload["url"])
+    assert uploaded.status_code == 200
+    assert uploaded.content == b"fake-audio-bytes"
+
+
+def test_upload_file_to_project_uses_project_oss_directory(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PUBLIC_BASE_URL", "https://cdn.example.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
+    uploads = []
+
+    class FakeOssResponse:
+        status = 200
+
+        def getcode(self) -> int:
+            return self.status
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+    def fake_urlopen(request, timeout):
+        uploads.append(
+            {
+                "url": request.full_url,
+                "headers": dict(request.header_items()),
+                "data": request.data,
+                "timeout": timeout,
+            }
+        )
+        return FakeOssResponse()
+
+    monkeypatch.setattr("app.services.output_storage.urllib.request.urlopen", fake_urlopen)
+    client = make_client(tmp_path, monkeypatch)
+    project = client.post(
+        "/api/v1/projects",
+        json={"couple_names": "Alice & Bob"},
+    ).json()["project"]
+
+    response = client.post(
+        "/api/v1/uploads",
+        data={"project_id": project["id"]},
+        files={"file": ("cover.jpg", b"fake-image-bytes", "image/jpeg")},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["url"].startswith(
+        f"https://cdn.example.com/wedding-videos/projects/{project['id']}/assets/"
+    )
+    assert payload["url"].endswith(".jpg")
+    assert payload["oss_key"].startswith(f"wedding-videos/projects/{project['id']}/assets/")
+    assert payload["suggested_asset_type"] == "photo"
+    assert uploads[0]["url"].startswith(
+        f"https://wedding-video.oss-cn-test.aliyuncs.com/"
+        f"wedding-videos/projects/{project['id']}/assets/"
+    )
+    assert uploads[0]["headers"]["Content-type"] == "image/jpeg"
+    assert uploads[0]["data"] == b"fake-image-bytes"
+
+
+def test_upload_rejects_unsupported_file_type(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+
+    response = client.post(
+        "/api/v1/uploads",
+        files={"file": ("notes.txt", b"not media", "text/plain")},
+    )
+
+    assert response.status_code == 415
+    assert "Unsupported upload type" in response.json()["detail"]
 
 
 def test_create_music_asset_with_beat_analysis(tmp_path, monkeypatch) -> None:
@@ -295,61 +466,245 @@ def test_generate_save_render_and_manifest_flow(tmp_path, monkeypatch) -> None:
     manifest = manifest_response.json()
     assert manifest["job_id"] == job["id"]
     assert manifest["renderer"]["name"] == "manifest"
+    assert manifest["render"]["variant"] == "final"
+    assert manifest["render"]["watermark"]["enabled"] is False
     assert manifest["spec"]["style"]["primary_color"] == "#112233"
     assert manifest["spec"]["timeline"][1]["caption"] == "Edited ceremony caption"
     assert len(manifest["spec"]["assets"]) == 3
 
 
-def test_generate_video_spec_uses_llm_for_initial_story(tmp_path, monkeypatch) -> None:
+def test_project_preview_render_manifest_has_watermark(tmp_path, monkeypatch) -> None:
     client = make_client(tmp_path, monkeypatch)
-    photo_a = create_asset(client, "photo", "ceremony", "The ceremony")
-    photo_b = create_asset(client, "photo", "rings", "The rings")
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
 
-    class FirstStoryProvider:
-        def complete(self, messages: list[dict], tools: list[dict]) -> AgentDecision:
-            spec = WeddingVideoSpec(
-                id="llm-spec",
-                template_id="classic_wedding",
-                title="LLM Story",
-                aspect_ratio="16:9",
-                duration_seconds=13,
-                assets=[Asset.model_validate(photo_a), Asset.model_validate(photo_b)],
-                timeline=[
-                    TimelineScene(type="title", duration_seconds=3, text="LLM Story"),
-                    TimelineScene(
-                        type="photo",
-                        duration_seconds=6,
-                        asset_id=photo_b["id"],
-                        caption="LLM chose rings first",
-                    ),
-                    TimelineScene(type="ending", duration_seconds=4, text="Thank you"),
-                ],
-            )
-            return AgentDecision(
-                assistant_message="story ready",
-                should_call_generate_video=True,
-                video_spec=spec,
-            )
+    response = client.post(f"/api/v1/projects/{project['id']}/preview-render")
 
-    client.app.dependency_overrides[routes_module.get_llm_provider] = lambda: FirstStoryProvider()
-    try:
-        generated = client.post(
-            "/api/v1/video-specs/generate",
-            json={
-                "template_id": "classic_wedding",
-                "title": "Alice & Bob",
-                "asset_ids": [photo_a["id"], photo_b["id"]],
-                "aspect_ratio": "16:9",
-            },
-        )
-    finally:
-        client.app.dependency_overrides.clear()
+    assert response.status_code == 202
+    payload = response.json()
+    job = payload["job"]
+    assert payload["project"]["preview_job_id"] == job["id"]
+    assert job["project_id"] == project["id"]
+    assert job["variant"] == "preview"
+    assert job["watermark"] is True
+    assert job["resolution"] == "720x1280"
+    assert job["entitlement_required"] is False
+    manifest = client.get(job["manifest_url"]).json()
+    assert manifest["render"]["project_id"] == project["id"]
+    assert manifest["render"]["variant"] == "preview"
+    assert manifest["render"]["watermark"]["enabled"] is True
+    assert manifest["render"]["resolution"] == {"width": 720, "height": 1280}
 
-    assert generated.status_code == 200
-    spec = generated.json()["spec"]
-    assert spec["title"] == "Alice & Bob"
-    assert spec["timeline"][1]["asset_id"] == photo_b["id"]
-    assert spec["timeline"][1]["caption"] == "LLM chose rings first"
+
+def test_project_final_render_requires_purchase(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+
+    response = client.post(f"/api/v1/projects/{project['id']}/final-render")
+
+    assert response.status_code == 402
+    assert "Purchase is required" in response.json()["detail"]
+
+
+def test_project_modify_requires_purchase(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/modify",
+        json={"prompt": "Make it faster with more party energy"},
+    )
+
+    assert response.status_code == 402
+    assert "Purchase is required" in response.json()["detail"]
+
+
+def test_project_modify_generates_new_paid_preview(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_AGENT_LLM_PROVIDER", "mock")
+    client = make_client(tmp_path, monkeypatch)
+    couple = create_asset(client, "photo", "couple", "The couple")
+    dance = client.post(
+        "/api/v1/assets",
+        json={
+            "type": "video",
+            "url": "https://example.com/dance.mp4",
+            "tag": "dance",
+            "description": "Dance floor video",
+            "metadata": {"width": 1080, "height": 1920, "tags": ["dance", "party", "motion"]},
+            "analysis_status": "ready",
+            "analysis": {"visual": {"detected_tags": ["dance", "party", "motion"], "quality_score": 0.88}},
+        },
+    ).json()["asset"]
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [couple["id"], dance["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+    purchase = client.post(
+        "/api/v1/iap/apple/verify",
+        json={
+            "project_id": project["id"],
+            "product_id": "com.aigcteacher.vowframeapp.singleexport",
+            "transaction_id": "txn-modify",
+            "original_transaction_id": "orig-modify",
+        },
+    )
+
+    response = client.post(
+        f"/api/v1/projects/{project['id']}/modify",
+        json={"prompt": "Make it faster with more dance and party energy"},
+    )
+
+    assert purchase.status_code == 200
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["project"]["entitlement_status"] == "active"
+    assert payload["project"]["spec_id"] == payload["spec"]["id"]
+    assert payload["project"]["preview_job_id"] == payload["job"]["id"]
+    assert payload["project"]["final_job_id"] is None
+    assert payload["job"]["variant"] == "preview"
+    assert payload["job"]["watermark"] is True
+    assert payload["spec"]["id"] != spec["id"]
+    assert payload["spec"]["style"]["style_preset_id"] == "reels_party_cut"
+    manifest = client.get(payload["job"]["manifest_url"]).json()
+    assert manifest["spec"]["id"] == payload["spec"]["id"]
+
+
+def test_project_purchase_allows_final_render_without_watermark(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+
+    purchase = client.post(
+        "/api/v1/iap/apple/verify",
+        json={
+            "project_id": project["id"],
+            "product_id": "com.aigcteacher.vowframeapp.singleexport",
+            "transaction_id": "txn-1",
+            "original_transaction_id": "orig-1",
+        },
+    )
+    response = client.post(f"/api/v1/projects/{project['id']}/final-render")
+
+    assert purchase.status_code == 200
+    assert purchase.json()["project"]["entitlement_status"] == "active"
+    assert response.status_code == 202
+    payload = response.json()
+    job = payload["job"]
+    assert payload["project"]["final_job_id"] == job["id"]
+    assert job["variant"] == "final"
+    assert job["watermark"] is False
+    assert job["resolution"] == "1080x1920"
+    assert job["entitlement_required"] is True
+    manifest = client.get(job["manifest_url"]).json()
+    assert manifest["render"]["watermark"]["enabled"] is False
+    assert manifest["render"]["resolution"] == {"width": 1080, "height": 1920}
+
+    restored = client.post(
+        "/api/v1/iap/apple/restore",
+        json={"project_id": project["id"], "original_transaction_id": "orig-1"},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["project"]["entitlement_status"] == "active"
+
+
+def test_project_purchase_rejects_unknown_product_id(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+
+    purchase = client.post(
+        "/api/v1/iap/apple/verify",
+        json={
+            "project_id": project["id"],
+            "product_id": "vowframe.hd_export",
+            "transaction_id": "txn-unknown",
+            "original_transaction_id": "orig-unknown",
+        },
+    )
+
+    assert purchase.status_code == 422
+
+
+def test_project_export_pack_purchase_allows_final_render(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+
+    purchase = client.post(
+        "/api/v1/iap/apple/verify",
+        json={
+            "project_id": project["id"],
+            "product_id": "com.aigcteacher.vowframeapp.exportpack",
+            "transaction_id": "txn-pack",
+            "original_transaction_id": "orig-pack",
+        },
+    )
+    response = client.post(f"/api/v1/projects/{project['id']}/final-render")
+
+    assert purchase.status_code == 200
+    assert purchase.json()["project"]["product_id"] == "com.aigcteacher.vowframeapp.exportpack"
+    assert response.status_code == 202
 
 
 def test_remotion_render_without_command_returns_clear_error(tmp_path, monkeypatch) -> None:
@@ -499,8 +854,10 @@ def test_remotion_render_uploads_output_to_oss_when_enabled(tmp_path, monkeypatc
     assert response.status_code == 200
     rendered_job = response.json()["job"]
     assert rendered_job["status"] == "ready"
-    assert rendered_job["output_url"] == f"https://cdn.example.com/renders/{job['id']}.mp4"
-    assert uploads[0]["url"] == f"https://wedding-video.oss-cn-test.aliyuncs.com/renders/{job['id']}.mp4"
+    assert rendered_job["output_url"] == f"https://cdn.example.com/renders/jobs/{job['id']}/output.mp4"
+    assert uploads[0]["url"] == (
+        f"https://wedding-video.oss-cn-test.aliyuncs.com/renders/jobs/{job['id']}/output.mp4"
+    )
     assert uploads[0]["headers"]["Content-type"] == "video/mp4"
     assert uploads[0]["headers"]["Authorization"].startswith("OSS test-key:")
     assert uploads[0]["data"] == b"fake mp4"
@@ -577,11 +934,9 @@ def test_eci_launcher_builds_spot_container_group_request(tmp_path, monkeypatch)
     assert sdk_request.active_deadline_seconds == 1800
     assert sdk_request.spot_strategy == "SpotAsPriceGo"
     assert sdk_request.strict_spot is False
-    assert sdk_request.auto_match_image_cache is False
     assert sdk_request.ephemeral_storage == 50
     container = sdk_request.container[0]
     assert container.image == "registry/render:latest"
-    assert container.image_pull_policy == "Always"
     assert container.command == ["python", "-m", "app.worker.render_job"]
     env = {item.key: item.value for item in container.environment_var}
     assert env["VIDEO_MAKER_JOB_ID"] == "job-1234567890"
@@ -589,59 +944,21 @@ def test_eci_launcher_builds_spot_container_group_request(tmp_path, monkeypatch)
     assert env["VIDEO_MAKER_RENDER_CALLBACK_TOKEN"] == "callback-token"
 
 
-def test_eci_launcher_uses_internal_base_url_for_relative_assets(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("VIDEO_MAKER_STORAGE_DIR", str(tmp_path))
-    monkeypatch.setenv("VIDEO_MAKER_PUBLIC_BASE_URL", "https://video-maker.example.com")
-    monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_BASE_URL", "http://10.0.0.8:8017")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test-internal.aliyuncs.com")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
-    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID", "aliyun-key")
-    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET", "aliyun-secret")
-    monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
-    monkeypatch.setenv("VIDEO_MAKER_ECI_SECURITY_GROUP_ID", "sg-test")
-    monkeypatch.setenv("VIDEO_MAKER_ECI_RENDERER_IMAGE", "registry/render:latest")
-    settings_module.get_settings.cache_clear()
-    settings = settings_module.get_settings()
-    job = RenderJob(id="job-1234567890", spec_id="spec-1", attempt_count=1)
-
-    sdk_request = EciLauncher(settings).build_create_request(
-        EciLaunchRequest(
-            job=job,
-            manifest_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/manifest",
-            manifest_oss_key="wedding-videos/jobs/job-123/manifest.json",
-            output_oss_key="wedding-videos/jobs/job-123/output.mp4",
-            callback_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/callback",
-            heartbeat_url="http://10.0.0.8:8017/api/v1/render-jobs/job-1234567890/heartbeat",
-            callback_token="callback-token",
-        )
-    )
-
-    env = {item.key: item.value for item in sdk_request.container[0].environment_var}
-    assert env["VIDEO_MAKER_PUBLIC_BASE_URL"] == "http://10.0.0.8:8017"
-    assert env["VIDEO_MAKER_ASSET_REWRITE_FROM"] == "https://video-maker.example.com"
-    assert env["VIDEO_MAKER_ASSET_REWRITE_TO"] == "http://10.0.0.8:8017"
-
-
 def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     tmp_path, monkeypatch
 ) -> None:
     monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
-    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test-internal.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
     monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
     monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
     monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
     monkeypatch.setenv("VIDEO_MAKER_OSS_PUBLIC_BASE_URL", "https://cdn.example.com")
     monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
-    monkeypatch.setenv("VIDEO_MAKER_PUBLIC_BASE_URL", "https://video-maker.example.com")
     monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID", "aliyun-key")
     monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET", "aliyun-secret")
     monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
     monkeypatch.setenv("VIDEO_MAKER_ECI_SECURITY_GROUP_ID", "sg-test")
     monkeypatch.setenv("VIDEO_MAKER_ECI_RENDERER_IMAGE", "registry/render:latest")
-    monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_BASE_URL", "http://10.0.0.8:8017")
     monkeypatch.setenv("VIDEO_MAKER_RENDER_CALLBACK_TOKEN", "callback-token")
     uploads = []
     launch_requests = []
@@ -680,15 +997,7 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
     monkeypatch.setattr("app.services.output_storage.urllib.request.urlopen", fake_urlopen)
     monkeypatch.setattr("app.api.routes.EciLauncher", FakeEciLauncher)
     client = make_client(tmp_path, monkeypatch)
-    photo = client.post(
-        "/api/v1/assets",
-        json={
-            "type": "photo",
-            "url": "http://video-maker.example.com/uploads/ceremony.jpg",
-            "tag": "ceremony",
-            "caption": "The ceremony",
-        },
-    ).json()["asset"]
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
     spec = client.post(
         "/api/v1/video-specs/generate",
         json={
@@ -715,26 +1024,89 @@ def test_eci_render_dispatch_uploads_manifest_and_saves_container_group(
         f"https://cdn.example.com/wedding-videos/jobs/{job['id']}/manifest.json"
     )
     assert uploads[0]["url"] == (
-        f"https://wedding-video.oss-cn-test-internal.aliyuncs.com/"
+        f"https://wedding-video.oss-cn-test.aliyuncs.com/"
         f"wedding-videos/jobs/{job['id']}/manifest.json"
     )
     assert uploads[0]["headers"]["Content-type"] == "application/json"
     assert b'"job_id":' in uploads[0]["data"]
-    uploaded_manifest = json.loads(uploads[0]["data"])
-    assert uploaded_manifest["spec"]["assets"][0]["url"] == (
-        "http://10.0.0.8:8017/uploads/ceremony.jpg"
-    )
-    assert launch_requests[0].manifest_url == (
-        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/manifest"
-    )
-    assert launch_requests[0].callback_url == (
-        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/callback"
-    )
-    assert launch_requests[0].heartbeat_url == (
-        f"http://10.0.0.8:8017/api/v1/render-jobs/{job['id']}/heartbeat"
-    )
     assert launch_requests[0].output_oss_key == f"wedding-videos/jobs/{job['id']}/output.mp4"
     assert launch_requests[0].callback_token == "callback-token"
+
+
+def test_project_eci_render_uses_project_render_directory(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PUBLIC_BASE_URL", "https://cdn.example.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
+    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID", "aliyun-key")
+    monkeypatch.setenv("VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET", "aliyun-secret")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_VSWITCH_ID", "vsw-test")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_SECURITY_GROUP_ID", "sg-test")
+    monkeypatch.setenv("VIDEO_MAKER_ECI_RENDERER_IMAGE", "registry/render:latest")
+    uploads = []
+    launch_requests = []
+
+    class FakeOssResponse:
+        status = 200
+
+        def getcode(self) -> int:
+            return self.status
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback) -> None:
+            return None
+
+    class FakeEciLauncher:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def launch(self, request):
+            launch_requests.append(request)
+            return EciLaunchResult(container_group_id="eci-project-test")
+
+    def fake_urlopen(request, timeout):
+        uploads.append({"url": request.full_url, "data": request.data})
+        return FakeOssResponse()
+
+    monkeypatch.setattr("app.services.output_storage.urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("app.api.routes.EciLauncher", FakeEciLauncher)
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "9:16",
+        },
+    ).json()["spec"]
+    project = client.post("/api/v1/projects", json={"spec_id": spec["id"]}).json()["project"]
+    job = client.post(f"/api/v1/projects/{project['id']}/preview-render").json()["job"]
+
+    response = client.post(f"/api/v1/render-jobs/{job['id']}/eci")
+
+    assert response.status_code == 200
+    rendered_job = response.json()["job"]
+    expected_manifest_key = (
+        f"wedding-videos/projects/{project['id']}/renders/{job['id']}/preview/manifest.json"
+    )
+    expected_output_key = (
+        f"wedding-videos/projects/{project['id']}/renders/{job['id']}/preview/output.mp4"
+    )
+    assert rendered_job["manifest_oss_key"] == expected_manifest_key
+    assert rendered_job["output_oss_key"] == expected_output_key
+    assert rendered_job["manifest_oss_url"] == f"https://cdn.example.com/{expected_manifest_key}"
+    assert uploads[0]["url"] == (
+        "https://wedding-video.oss-cn-test.aliyuncs.com/"
+        f"{expected_manifest_key}"
+    )
+    assert launch_requests[0].output_oss_key == expected_output_key
 
 
 def test_eci_render_missing_config_returns_422(tmp_path, monkeypatch) -> None:
@@ -853,6 +1225,71 @@ def test_render_job_heartbeat_and_callback_require_token(tmp_path, monkeypatch) 
     assert ready_job["finished_at"] is not None
 
 
+def test_render_job_playback_url_requires_ready_job(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "16:9",
+        },
+    ).json()["spec"]
+    job = client.post("/api/v1/render-jobs", json={"spec_id": spec["id"]}).json()["job"]
+
+    response = client.get(f"/api/v1/render-jobs/{job['id']}/playback-url")
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Render job is not ready"
+
+
+def test_render_job_playback_url_signs_private_oss_output(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENABLED", "true")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ENDPOINT", "https://oss-cn-test.aliyuncs.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_BUCKET", "wedding-video")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_ID", "oss-key")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_ACCESS_KEY_SECRET", "oss-secret")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PUBLIC_BASE_URL", "https://cdn.example.com")
+    monkeypatch.setenv("VIDEO_MAKER_OSS_PREFIX", "wedding-videos")
+    client = make_client(tmp_path, monkeypatch)
+    photo = create_asset(client, "photo", "ceremony", "The ceremony")
+    spec = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [photo["id"]],
+            "aspect_ratio": "16:9",
+        },
+    ).json()["spec"]
+    job = client.post("/api/v1/render-jobs", json={"spec_id": spec["id"]}).json()["job"]
+    ready = client.post(
+        f"/api/v1/render-jobs/{job['id']}/callback",
+        json={
+            "status": "ready",
+            "output_url": f"https://cdn.example.com/wedding-videos/jobs/{job['id']}/output.mp4",
+            "output_oss_key": f"wedding-videos/jobs/{job['id']}/output.mp4",
+        },
+    )
+    assert ready.status_code == 200
+
+    response = client.get(f"/api/v1/render-jobs/{job['id']}/playback-url")
+
+    assert response.status_code == 200
+    payload = response.json()
+    parsed = urllib.parse.urlparse(payload["url"])
+    query = urllib.parse.parse_qs(parsed.query)
+    assert payload["url"].startswith(
+        f"https://cdn.example.com/wedding-videos/jobs/{job['id']}/output.mp4?"
+    )
+    assert query["OSSAccessKeyId"] == ["oss-key"]
+    assert "Expires" in query
+    assert "Signature" in query
+    assert payload["expires_at"]
+
+
 def test_render_job_callback_records_preempted_as_retrying(tmp_path, monkeypatch) -> None:
     client = make_client(tmp_path, monkeypatch)
     photo = create_asset(client, "photo", "ceremony", "The ceremony")
@@ -950,6 +1387,99 @@ def test_generate_spec_uses_asset_description_as_caption(tmp_path, monkeypatch) 
     assert generated.status_code == 200
     spec = generated.json()["spec"]
     assert spec["timeline"][1]["caption"] == "The first look before the ceremony"
+
+
+def test_generate_spec_outputs_distinct_style_presets(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    asset_payloads = [
+        ("photo", "couple", ["couple", "hero", "portrait"], 0.92),
+        ("photo", "venue", ["venue", "details", "establishing"], 0.87),
+        ("photo", "family", ["family", "parents", "friends"], 0.84),
+        ("photo", "vows", ["vows", "rings", "ceremony"], 0.9),
+        ("video", "dance", ["dance", "party", "motion"], 0.82),
+    ]
+    asset_ids = []
+    for asset_type, tag, tags, quality in asset_payloads:
+        response = client.post(
+            "/api/v1/assets",
+            json={
+                "type": asset_type,
+                "url": f"https://example.com/{tag}.{'mp4' if asset_type == 'video' else 'jpg'}",
+                "tag": tag,
+                "description": f"{tag} moment",
+                "metadata": {"width": 1080, "height": 1920, "tags": tags},
+                "analysis_status": "ready",
+                "analysis": {"visual": {"detected_tags": tags, "quality_score": quality}},
+            },
+        )
+        assert response.status_code == 201
+        asset_ids.append(response.json()["asset"]["id"])
+
+    presets = ["nostalgia_editorial", "reels_party_cut", "clean_film_trailer", "guest_pov_recap"]
+    generated_specs = []
+    for preset in presets:
+        response = client.post(
+            "/api/v1/video-specs/generate",
+            json={
+                "template_id": "classic_wedding",
+                "title": "Alice & Bob",
+                "asset_ids": asset_ids,
+                "aspect_ratio": "9:16",
+                "style_preset_id": preset,
+            },
+        )
+        assert response.status_code == 200
+        generated_specs.append(response.json()["spec"])
+
+    layouts_by_preset = [
+        tuple(scene.get("parameters", {}).get("layout") for scene in spec["timeline"])
+        for spec in generated_specs
+    ]
+    assert len(set(layouts_by_preset)) == len(presets)
+    assert {spec["style"]["style_preset_id"] for spec in generated_specs} == set(presets)
+    assert any(
+        scene["type"] == "video" and scene["parameters"]["slot"] in {"celebration", "hook", "finish", "party"}
+        for scene in generated_specs[1]["timeline"]
+    )
+
+
+def test_generate_spec_uses_upload_order_only_as_fallback(tmp_path, monkeypatch) -> None:
+    client = make_client(tmp_path, monkeypatch)
+    low_match = client.post(
+        "/api/v1/assets",
+        json={
+            "type": "photo",
+            "url": "https://example.com/random.jpg",
+            "tag": "random",
+            "analysis_status": "ready",
+            "analysis": {"visual": {"detected_tags": ["random"], "quality_score": 0.4}},
+        },
+    ).json()["asset"]
+    couple_match = client.post(
+        "/api/v1/assets",
+        json={
+            "type": "photo",
+            "url": "https://example.com/couple.jpg",
+            "tag": "couple",
+            "analysis_status": "ready",
+            "analysis": {"visual": {"detected_tags": ["couple", "hero"], "quality_score": 0.95}},
+        },
+    ).json()["asset"]
+
+    response = client.post(
+        "/api/v1/video-specs/generate",
+        json={
+            "template_id": "classic_wedding",
+            "title": "Alice & Bob",
+            "asset_ids": [low_match["id"], couple_match["id"]],
+            "style_preset_id": "nostalgia_editorial",
+        },
+    )
+
+    assert response.status_code == 200
+    first_media_scene = response.json()["spec"]["timeline"][1]
+    assert first_media_scene["asset_id"] == couple_match["id"]
+    assert first_media_scene["parameters"]["layout"] == "full_photo_title"
 
 
 def test_unknown_template_returns_422(tmp_path, monkeypatch) -> None:

@@ -11,27 +11,24 @@ from app.services.agent_context import AgentContextBuilder
 from app.services.agent_llm import DeepSeekLLMProvider, LLMOutputParseError, RawJsonLLMProvider
 
 
-CLOUD_ENV_DEFAULTS = {
-    "VIDEO_MAKER_OSS_ENABLED": "false",
-    "VIDEO_MAKER_OSS_ENDPOINT": "",
-    "VIDEO_MAKER_OSS_BUCKET": "",
-    "VIDEO_MAKER_OSS_ACCESS_KEY_ID": "",
-    "VIDEO_MAKER_OSS_ACCESS_KEY_SECRET": "",
-    "VIDEO_MAKER_OSS_PUBLIC_BASE_URL": "",
-    "VIDEO_MAKER_ALIYUN_ACCESS_KEY_ID": "",
-    "VIDEO_MAKER_ALIYUN_ACCESS_KEY_SECRET": "",
-    "VIDEO_MAKER_RENDER_CALLBACK_BASE_URL": "",
-    "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": "",
-}
-
-
 def make_client(tmp_path, monkeypatch) -> TestClient:
-    for key, value in CLOUD_ENV_DEFAULTS.items():
-        if key not in os.environ:
-            monkeypatch.setenv(key, value)
     monkeypatch.setenv("VIDEO_MAKER_STORAGE_DIR", str(tmp_path))
     monkeypatch.setenv("VIDEO_MAKER_GLOBAL_RENDER_PATH", "/global/videos/{job_id}")
     monkeypatch.setenv("VIDEO_MAKER_AGENT_LLM_PROVIDER", "mock")
+    local_defaults = {
+        "VIDEO_MAKER_DATABASE_URL": "",
+        "VIDEO_MAKER_OSS_ENABLED": "false",
+        "VIDEO_MAKER_OSS_ENDPOINT": "",
+        "VIDEO_MAKER_OSS_BUCKET": "",
+        "VIDEO_MAKER_OSS_ACCESS_KEY_ID": "",
+        "VIDEO_MAKER_OSS_ACCESS_KEY_SECRET": "",
+        "VIDEO_MAKER_OSS_PUBLIC_BASE_URL": "",
+        "VIDEO_MAKER_RENDER_MODE": "local",
+        "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": "",
+    }
+    for key, value in local_defaults.items():
+        if key not in os.environ:
+            monkeypatch.setenv(key, value)
     monkeypatch.delenv("VIDEO_MAKER_DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     settings_module.get_settings.cache_clear()

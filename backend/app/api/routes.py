@@ -1,28 +1,43 @@
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
+from sqlalchemy.orm import Session
 
 from app.core.settings import Settings, get_settings
+from app.db import get_db_session
 from app.models.catalog import TEMPLATES
 from app.schemas import (
     AssetResponse,
     AgentRunResponse,
     AgentSessionResponse,
+    AppleIapRestoreRequest,
+    AppleIapVerifyRequest,
     AdvisorOptionsRequest,
     AdvisorOptionsResponse,
     CreateAssetRequest,
     CreateAgentSessionRequest,
     CreateRenderJobRequest,
+    CreateVideoProjectRequest,
     GenerateVideoSpecRequest,
     HealthResponse,
+    LinkProjectAssetRequest,
+    ModifyVideoProjectRequest,
+    ModifyVideoProjectResponse,
+    ProjectAssetListResponse,
+    ProjectAssetResponse,
+    ProjectRenderJobResponse,
     RenderJobCallbackRequest,
     RenderJobHeartbeatRequest,
+    RenderJobPlaybackUrlResponse,
     RenderJobResponse,
     SaveVideoSpecRequest,
     SendAgentMessageRequest,
     TemplateListResponse,
+    UpdateAssetRequest,
+    UpdateVideoProjectRequest,
     UploadResponse,
+    VideoProjectResponse,
     VideoSpecResponse,
 )
 from app.services.agent_service import AgentService
@@ -35,65 +50,83 @@ from app.services.agent_store import (
 from app.services.agent_tool import GenerateVideoTool
 from app.services.advisor_service import AdvisorService
 from app.services.asset_service import AssetService
-from app.services.asset_store import AssetNotFoundError, FileAssetStore
+from app.services.asset_store import AssetNotFoundError
+from app.services.db_store import (
+    DbAssetStore,
+    DbJobStore,
+    DbProjectStore,
+    DbSpecStore,
+    PurchaseEntitlementRepository,
+)
 from app.services.demo_asset_catalog import list_demo_assets
 from app.services.eci_launcher import EciLauncher
 from app.services.file_store import RecordNotFoundError
-from app.services.job_store import FileJobStore, JobNotFoundError
+from app.services.job_store import JobNotFoundError
 from app.services.output_storage import AliyunOssOutputStorage
+from app.services.oss_keys import project_asset_object_key, upload_object_key
+from app.services.project_service import (
+    EntitlementRequiredError,
+    EntitlementRestoreError,
+    ProjectAssetError,
+    ProjectSpecRequiredError,
+    VideoProjectService,
+)
+from app.services.project_store import ProjectNotFoundError
 from app.services.render_service import (
     InvalidRenderModeError,
     InvalidRenderCallbackError,
+    PlaybackUrlError,
     RemoteRenderError,
     RenderService,
     UnknownRendererError,
 )
 from app.services.renderer import RemotionRendererError
 from app.services.spec_service import SpecValidationError, VideoSpecService
-from app.services.spec_store import FileSpecStore, SpecNotFoundError
+from app.services.spec_store import SpecNotFoundError
 from app.services.template_service import (
     TemplateService,
     TemplateValidationError,
     UnknownTemplateError,
 )
-
 router = APIRouter()
+MAX_UPLOAD_BYTES = 250 * 1024 * 1024
+PHOTO_UPLOAD_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+VIDEO_UPLOAD_SUFFIXES = {".mp4", ".mov", ".webm", ".m4v"}
+AUDIO_UPLOAD_SUFFIXES = {".mp3", ".wav", ".m4a", ".aac", ".ogg"}
+SUPPORTED_UPLOAD_SUFFIXES = PHOTO_UPLOAD_SUFFIXES | VIDEO_UPLOAD_SUFFIXES | AUDIO_UPLOAD_SUFFIXES
 
 
-def get_asset_store(settings: Settings = Depends(get_settings)) -> FileAssetStore:
-    return FileAssetStore(settings.assets_dir)
+def get_asset_store(session: Session = Depends(get_db_session)) -> DbAssetStore:
+    return DbAssetStore(session)
 
 
-def get_spec_store(settings: Settings = Depends(get_settings)) -> FileSpecStore:
-    return FileSpecStore(settings.specs_dir)
+def get_spec_store(session: Session = Depends(get_db_session)) -> DbSpecStore:
+    return DbSpecStore(session)
+
+
+def get_job_store(session: Session = Depends(get_db_session)) -> DbJobStore:
+    return DbJobStore(session)
+
+
+def get_project_store(session: Session = Depends(get_db_session)) -> DbProjectStore:
+    return DbProjectStore(session)
 
 
 def get_template_service() -> TemplateService:
     return TemplateService()
 
 
-def get_asset_service(asset_store: FileAssetStore = Depends(get_asset_store)) -> AssetService:
+def get_asset_service(asset_store: DbAssetStore = Depends(get_asset_store)) -> AssetService:
     return AssetService(asset_store)
 
 
-def get_advisor_service(asset_store: FileAssetStore = Depends(get_asset_store)) -> AdvisorService:
+def get_advisor_service(asset_store: DbAssetStore = Depends(get_asset_store)) -> AdvisorService:
     return AdvisorService(asset_store)
 
 
-def get_llm_provider(settings: Settings = Depends(get_settings)):
-    if settings.agent_llm_provider.lower() == "mock":
-        return MockLLMProvider()
-    return DeepSeekLLMProvider(
-        api_key=settings.deepseek_api_key,
-        base_url=settings.deepseek_base_url,
-        model=settings.deepseek_model,
-        timeout_seconds=settings.deepseek_timeout_seconds,
-    )
-
-
 def get_spec_service(
-    asset_store: FileAssetStore = Depends(get_asset_store),
-    spec_store: FileSpecStore = Depends(get_spec_store),
+    asset_store: DbAssetStore = Depends(get_asset_store),
+    spec_store: DbSpecStore = Depends(get_spec_store),
     template_service: TemplateService = Depends(get_template_service),
 ) -> VideoSpecService:
     return VideoSpecService(asset_store, spec_store, template_service)
@@ -101,7 +134,8 @@ def get_spec_service(
 
 def get_render_service(
     settings: Settings = Depends(get_settings),
-    spec_store: FileSpecStore = Depends(get_spec_store),
+    spec_store: DbSpecStore = Depends(get_spec_store),
+    job_store: DbJobStore = Depends(get_job_store),
 ) -> RenderService:
     output_storage = (
         AliyunOssOutputStorage(
@@ -117,13 +151,12 @@ def get_render_service(
         else None
     )
     return RenderService(
-        FileJobStore(settings.jobs_dir),
+        job_store,
         spec_store,
         settings.outputs_dir,
         remotion_command=settings.remotion_command,
         remotion_timeout_seconds=settings.remotion_timeout_seconds,
         public_base_url=settings.public_base_url,
-        render_callback_base_url=settings.render_callback_base_url,
         output_storage=output_storage,
         cleanup_local_output=settings.oss_enabled and settings.oss_cleanup_local_output,
         eci_launcher=EciLauncher(settings),
@@ -132,48 +165,131 @@ def get_render_service(
     )
 
 
+def get_project_service(
+    project_store: DbProjectStore = Depends(get_project_store),
+    spec_store: DbSpecStore = Depends(get_spec_store),
+    job_store: DbJobStore = Depends(get_job_store),
+    render_service: RenderService = Depends(get_render_service),
+    asset_store: DbAssetStore = Depends(get_asset_store),
+    session: Session = Depends(get_db_session),
+) -> VideoProjectService:
+    return VideoProjectService(
+        project_store,
+        spec_store,
+        job_store,
+        render_service,
+        asset_store,
+        session,
+        PurchaseEntitlementRepository(session),
+    )
+
+
 def _suggest_asset_type(content_type: str, filename: str):
     content_type = (content_type or "").lower()
     suffix = Path(filename).suffix.lower()
-    if content_type.startswith("image/") or suffix in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+    if content_type.startswith("image/") or suffix in PHOTO_UPLOAD_SUFFIXES:
         return "photo"
-    if content_type.startswith("video/") or suffix in {".mp4", ".mov", ".webm", ".m4v"}:
+    if content_type.startswith("video/") or suffix in VIDEO_UPLOAD_SUFFIXES:
         return "video"
-    if content_type.startswith("audio/") or suffix in {".mp3", ".wav", ".m4a", ".aac", ".ogg"}:
+    if content_type.startswith("audio/") or suffix in AUDIO_UPLOAD_SUFFIXES:
         return "music"
     return "photo"
+
+
+def _is_supported_upload(content_type: str, filename: str) -> bool:
+    content_type = (content_type or "").lower()
+    suffix = Path(filename).suffix.lower()
+    return (
+        content_type.startswith(("image/", "video/", "audio/"))
+        or suffix in SUPPORTED_UPLOAD_SUFFIXES
+    )
 
 
 @router.post("/api/v1/uploads", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file(
     request: Request,
     file: UploadFile = File(...),
+    project_id: str | None = Form(default=None),
     settings: Settings = Depends(get_settings),
+    project_service: VideoProjectService = Depends(get_project_service),
 ) -> UploadResponse:
+    if project_id:
+        try:
+            project_service.get_project(project_id)
+        except ProjectNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
     original_name = Path(file.filename or "upload").name
     suffix = Path(original_name).suffix
+    content_type = file.content_type or "application/octet-stream"
+    if not _is_supported_upload(content_type, original_name):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported upload type. Use an image, video, or audio file.",
+        )
     stored_name = f"{uuid4()}{suffix}"
     target = settings.uploads_dir / stored_name
     content = await file.read()
-    target.write_bytes(content)
-    content_type = file.content_type or "application/octet-stream"
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Upload is too large.",
+        )
+
+    oss_key: str | None = None
+    if settings.oss_enabled:
+        storage = AliyunOssOutputStorage(
+            endpoint=settings.oss_endpoint or "",
+            bucket=settings.oss_bucket or "",
+            access_key_id=settings.oss_access_key_id or "",
+            access_key_secret=settings.oss_access_key_secret or "",
+            prefix=settings.oss_prefix,
+            public_base_url=settings.oss_public_base_url,
+            timeout_seconds=settings.oss_timeout_seconds,
+        )
+        object_key = (
+            project_asset_object_key(project_id, stored_name)
+            if project_id
+            else upload_object_key(stored_name)
+        )
+        try:
+            url = storage.upload_bytes(content, object_key, content_type)
+            oss_key = storage.normalize_key(object_key)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    else:
+        target.write_bytes(content)
+        url = str(request.url_for("uploads", path=stored_name))
+
     return UploadResponse(
-        url=str(request.url_for("uploads", path=stored_name)),
+        url=url,
         filename=original_name,
         content_type=content_type,
         size_bytes=len(content),
         suggested_asset_type=_suggest_asset_type(content_type, original_name),
+        oss_key=oss_key,
     )
 
 
 def get_agent_service(
     settings: Settings = Depends(get_settings),
-    asset_store: FileAssetStore = Depends(get_asset_store),
-    spec_store: FileSpecStore = Depends(get_spec_store),
+    asset_store: DbAssetStore = Depends(get_asset_store),
+    spec_store: DbSpecStore = Depends(get_spec_store),
     spec_service: VideoSpecService = Depends(get_spec_service),
     render_service: RenderService = Depends(get_render_service),
-    llm_provider=Depends(get_llm_provider),
 ) -> AgentService:
+    llm_provider = (
+        MockLLMProvider()
+        if settings.agent_llm_provider.lower() == "mock"
+        else DeepSeekLLMProvider(
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            timeout_seconds=settings.deepseek_timeout_seconds,
+        )
+    )
     generate_video_tool = GenerateVideoTool(
         spec_service=spec_service,
         render_service=render_service,
@@ -186,6 +302,17 @@ def get_agent_service(
         spec_store=spec_store,
         generate_video_tool=generate_video_tool,
         llm_provider=llm_provider,
+    )
+
+
+def get_llm_provider(settings: Settings = Depends(get_settings)):
+    if settings.agent_llm_provider.lower() == "mock":
+        return MockLLMProvider()
+    return DeepSeekLLMProvider(
+        api_key=settings.deepseek_api_key,
+        base_url=settings.deepseek_base_url,
+        model=settings.deepseek_model,
+        timeout_seconds=settings.deepseek_timeout_seconds,
     )
 
 
@@ -238,14 +365,25 @@ def get_asset(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found") from exc
 
 
+@router.patch("/api/v1/assets/{asset_id}", response_model=AssetResponse)
+def update_asset(
+    asset_id: str,
+    request: UpdateAssetRequest,
+    asset_service: AssetService = Depends(get_asset_service),
+) -> AssetResponse:
+    try:
+        return AssetResponse(asset=asset_service.update_asset(asset_id, request))
+    except AssetNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found") from exc
+
+
 @router.post("/api/v1/video-specs/generate", response_model=VideoSpecResponse)
 def generate_video_spec(
     request: GenerateVideoSpecRequest,
     spec_service: VideoSpecService = Depends(get_spec_service),
-    llm_provider=Depends(get_llm_provider),
 ) -> VideoSpecResponse:
     try:
-        return VideoSpecResponse(spec=spec_service.generate_spec(request, llm_provider))
+        return VideoSpecResponse(spec=spec_service.generate_spec(request))
     except UnknownTemplateError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -296,6 +434,266 @@ def get_video_spec(
 
 
 @router.post(
+    "/api/v1/projects",
+    response_model=VideoProjectResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_video_project(
+    request: CreateVideoProjectRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.create_project(request))
+    except SpecNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown spec_id: {exc}",
+        ) from exc
+
+
+@router.get("/api/v1/projects/by-code/{invite_code}", response_model=VideoProjectResponse)
+def get_video_project_by_invite_code(
+    invite_code: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.get_by_invite_code(invite_code))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+
+
+@router.get("/api/v1/projects/{project_id}", response_model=VideoProjectResponse)
+def get_video_project(
+    project_id: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.get_project(project_id))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+
+
+@router.patch("/api/v1/projects/{project_id}", response_model=VideoProjectResponse)
+def update_video_project(
+    project_id: str,
+    request: UpdateVideoProjectRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.update_project(project_id, request))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except SpecNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown spec_id: {exc}",
+        ) from exc
+
+
+@router.post(
+    "/api/v1/projects/{project_id}/assets",
+    response_model=ProjectAssetResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def link_project_asset(
+    project_id: str,
+    request: LinkProjectAssetRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> ProjectAssetResponse:
+    try:
+        return ProjectAssetResponse(item=project_service.link_asset(project_id, request))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except ProjectAssetError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.get(
+    "/api/v1/projects/{project_id}/assets",
+    response_model=ProjectAssetListResponse,
+)
+def list_project_assets(
+    project_id: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> ProjectAssetListResponse:
+    try:
+        return ProjectAssetListResponse(items=project_service.list_assets(project_id))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+
+
+@router.delete(
+    "/api/v1/projects/{project_id}/assets/{asset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def unlink_project_asset(
+    project_id: str,
+    asset_id: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> None:
+    try:
+        project_service.unlink_asset(project_id, asset_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except ProjectAssetError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+@router.post(
+    "/api/v1/projects/{project_id}/preview-render",
+    response_model=ProjectRenderJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_project_preview_render(
+    project_id: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> ProjectRenderJobResponse:
+    try:
+        project, job = project_service.create_preview_job(project_id)
+        return ProjectRenderJobResponse(project=project, job=job)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except (ProjectSpecRequiredError, SpecNotFoundError, UnknownRendererError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post(
+    "/api/v1/projects/{project_id}/modify",
+    response_model=ModifyVideoProjectResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def modify_video_project(
+    project_id: str,
+    request: ModifyVideoProjectRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+    spec_service: VideoSpecService = Depends(get_spec_service),
+    llm_provider=Depends(get_llm_provider),
+) -> ModifyVideoProjectResponse:
+    try:
+        project = project_service.get_project(project_id)
+        if project.entitlement_status.value != "active":
+            raise EntitlementRequiredError("Purchase is required before modifying this reel")
+        if not project.spec_id:
+            raise ProjectSpecRequiredError("Project must have a spec before modification")
+        base_spec = spec_service.get_spec(project.spec_id)
+        modified_spec = spec_service.generate_modified_spec(base_spec, request.prompt, llm_provider)
+        updated_project, job = project_service.replace_spec_and_create_preview_job(project.id, modified_spec.id)
+        return ModifyVideoProjectResponse(project=updated_project, spec=modified_spec, job=job)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except EntitlementRequiredError as exc:
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
+    except (ProjectSpecRequiredError, SpecNotFoundError, UnknownRendererError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post(
+    "/api/v1/projects/{project_id}/final-render",
+    response_model=ProjectRenderJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_project_final_render(
+    project_id: str,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> ProjectRenderJobResponse:
+    try:
+        project, job = project_service.create_final_job(project_id)
+        return ProjectRenderJobResponse(project=project, job=job)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except EntitlementRequiredError as exc:
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
+    except (ProjectSpecRequiredError, SpecNotFoundError, UnknownRendererError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.post("/api/v1/iap/apple/verify", response_model=VideoProjectResponse)
+def verify_apple_purchase(
+    request: AppleIapVerifyRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.record_apple_purchase(request))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+
+
+@router.post("/api/v1/iap/apple/restore", response_model=VideoProjectResponse)
+def restore_apple_purchase(
+    request: AppleIapRestoreRequest,
+    project_service: VideoProjectService = Depends(get_project_service),
+) -> VideoProjectResponse:
+    try:
+        return VideoProjectResponse(project=project_service.restore_apple_purchase(request))
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    except EntitlementRestoreError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+def _project_playback_url(
+    project_id: str,
+    job_id: str | None,
+    settings: Settings,
+    render_service: RenderService,
+) -> RenderJobPlaybackUrlResponse:
+    if not job_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Render job has not been created",
+        )
+    try:
+        job = render_service.get_job(job_id)
+        if job.project_id != project_id:
+            raise PlaybackUrlError("Render job does not belong to this project")
+        url, expires_at = render_service.get_playback_url(
+            job_id,
+            settings.oss_signed_url_expires_seconds,
+        )
+        return RenderJobPlaybackUrlResponse(url=url, expires_at=expires_at)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc
+    except PlaybackUrlError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+
+@router.get(
+    "/api/v1/projects/{project_id}/preview-playback-url",
+    response_model=RenderJobPlaybackUrlResponse,
+)
+def get_project_preview_playback_url(
+    project_id: str,
+    settings: Settings = Depends(get_settings),
+    project_service: VideoProjectService = Depends(get_project_service),
+    render_service: RenderService = Depends(get_render_service),
+) -> RenderJobPlaybackUrlResponse:
+    try:
+        project = project_service.get_project(project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    return _project_playback_url(project_id, project.preview_job_id, settings, render_service)
+
+
+@router.get(
+    "/api/v1/projects/{project_id}/final-playback-url",
+    response_model=RenderJobPlaybackUrlResponse,
+)
+def get_project_final_playback_url(
+    project_id: str,
+    settings: Settings = Depends(get_settings),
+    project_service: VideoProjectService = Depends(get_project_service),
+    render_service: RenderService = Depends(get_render_service),
+) -> RenderJobPlaybackUrlResponse:
+    try:
+        project = project_service.get_project(project_id)
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found") from exc
+    if project.entitlement_status != "active":
+        raise HTTPException(status_code=402, detail="Purchase is required before final playback")
+    return _project_playback_url(project_id, project.final_job_id, settings, render_service)
+
+
+@router.post(
     "/api/v1/render-jobs",
     response_model=RenderJobResponse,
     status_code=status.HTTP_202_ACCEPTED,
@@ -327,6 +725,27 @@ def get_render_job(
         return RenderJobResponse(job=render_service.get_job(job_id))
     except JobNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc
+
+
+@router.get(
+    "/api/v1/render-jobs/{job_id}/playback-url",
+    response_model=RenderJobPlaybackUrlResponse,
+)
+def get_render_job_playback_url(
+    job_id: str,
+    settings: Settings = Depends(get_settings),
+    render_service: RenderService = Depends(get_render_service),
+) -> RenderJobPlaybackUrlResponse:
+    try:
+        url, expires_at = render_service.get_playback_url(
+            job_id,
+            settings.oss_signed_url_expires_seconds,
+        )
+        return RenderJobPlaybackUrlResponse(url=url, expires_at=expires_at)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from exc
+    except PlaybackUrlError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
 
 @router.post("/api/v1/render-jobs/{job_id}/remotion", response_model=RenderJobResponse)

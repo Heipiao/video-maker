@@ -16,9 +16,19 @@ class RenderJobStatus(StrEnum):
     expired = "expired"
 
 
+class RenderVariant(StrEnum):
+    preview = "preview"
+    final = "final"
+
+
 class RenderJob(BaseModel):
     id: str
     spec_id: str
+    project_id: str | None = None
+    variant: RenderVariant = RenderVariant.final
+    watermark: bool = False
+    resolution: str | None = None
+    entitlement_required: bool = False
     renderer: str = "manifest"
     status: RenderJobStatus = RenderJobStatus.queued
     manifest_url: str | None = None

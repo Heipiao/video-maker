@@ -61,7 +61,7 @@ class EciLauncher:
         container = eci_models.CreateContainerGroupRequestContainer(
             name="renderer",
             image=self.settings.eci_renderer_image,
-            image_pull_policy="Always",
+            image_pull_policy="IfNotPresent",
             cpu=self.settings.eci_cpu,
             memory=self.settings.eci_memory,
             environment_var=env,
@@ -87,7 +87,7 @@ class EciLauncher:
             container_group_name=self._container_group_name(request.job),
             client_token=f"render-{request.job.id}-{request.job.attempt_count}",
             restart_policy="Never",
-            auto_match_image_cache=False,
+            auto_match_image_cache=True,
             cpu=self.settings.eci_cpu,
             memory=self.settings.eci_memory,
             active_deadline_seconds=self.settings.eci_active_deadline_seconds,
@@ -111,11 +111,7 @@ class EciLauncher:
             "VIDEO_MAKER_RENDER_HEARTBEAT_URL": request.heartbeat_url,
             "VIDEO_MAKER_RENDER_CALLBACK_TOKEN": request.callback_token,
             "VIDEO_MAKER_REMOTION_COMMAND": "node remotion/render.mjs {manifest_path} {output_path}",
-            "VIDEO_MAKER_PUBLIC_BASE_URL": (
-                self.settings.render_callback_base_url or self.settings.public_base_url
-            ),
-            "VIDEO_MAKER_ASSET_REWRITE_FROM": self.settings.public_base_url,
-            "VIDEO_MAKER_ASSET_REWRITE_TO": self.settings.render_callback_base_url,
+            "VIDEO_MAKER_PUBLIC_BASE_URL": self.settings.public_base_url,
             "VIDEO_MAKER_OSS_ENDPOINT": self.settings.oss_endpoint,
             "VIDEO_MAKER_OSS_BUCKET": self.settings.oss_bucket,
             "VIDEO_MAKER_OSS_ACCESS_KEY_ID": self.settings.oss_access_key_id,

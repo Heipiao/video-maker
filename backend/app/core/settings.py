@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     storage_dir: Path = Path("storage")
+    database_url: str | None = None
     global_render_path: str = "/api/v1/render-jobs/{job_id}/manifest"
     agent_llm_provider: str = "deepseek"
     deepseek_api_key: str | None = None
@@ -15,9 +16,7 @@ class Settings(BaseSettings):
     deepseek_timeout_seconds: float = 60
     remotion_command: str | None = "node ../renderer/remotion/render.mjs {manifest_path} {output_path}"
     remotion_timeout_seconds: float = 300
-    public_base_url: str = "http://127.0.0.1:8017"
-    builtin_music_base_url: str | None = None
-    render_callback_base_url: str | None = None
+    public_base_url: str = "http://127.0.0.1:8000"
     oss_enabled: bool = False
     oss_endpoint: str | None = None
     oss_bucket: str | None = None
@@ -27,6 +26,7 @@ class Settings(BaseSettings):
     oss_public_base_url: str | None = None
     oss_timeout_seconds: float = 120
     oss_cleanup_local_output: bool = True
+    oss_signed_url_expires_seconds: int = 3600
     render_mode: str = "local"
     aliyun_access_key_id: str | None = None
     aliyun_access_key_secret: str | None = None
@@ -59,12 +59,22 @@ class Settings(BaseSettings):
         return self.storage_dir / "assets"
 
     @property
+    def effective_database_url(self) -> str:
+        if self.database_url:
+            return self.database_url
+        return f"sqlite:///{self.storage_dir / 'video_maker.db'}"
+
+    @property
     def specs_dir(self) -> Path:
         return self.storage_dir / "specs"
 
     @property
     def jobs_dir(self) -> Path:
         return self.storage_dir / "jobs"
+
+    @property
+    def projects_dir(self) -> Path:
+        return self.storage_dir / "projects"
 
     @property
     def outputs_dir(self) -> Path:
@@ -89,6 +99,7 @@ def get_settings() -> Settings:
     settings.assets_dir.mkdir(parents=True, exist_ok=True)
     settings.specs_dir.mkdir(parents=True, exist_ok=True)
     settings.jobs_dir.mkdir(parents=True, exist_ok=True)
+    settings.projects_dir.mkdir(parents=True, exist_ok=True)
     settings.outputs_dir.mkdir(parents=True, exist_ok=True)
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)
     settings.agent_sessions_dir.mkdir(parents=True, exist_ok=True)

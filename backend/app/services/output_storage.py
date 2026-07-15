@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime, timedelta, timezone
 import email.utils
 import hmac
 import hashlib
@@ -24,8 +25,16 @@ class LocalOutputStorage:
     def normalize_key(self, object_key: str) -> str:
         return object_key.strip("/")
 
-    def access_url(self, object_key: str) -> str:
-        raise OutputStorageError("OSS storage is required for remote render artifacts")
+    def playback_url(
+        self,
+        url: str,
+        public_base_url: str,
+        expires_seconds: int,
+    ) -> tuple[str, datetime]:
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
+        if url.startswith("/"):
+            return f"{public_base_url.rstrip('/')}{url}", expires_at
+        return url, expires_at
 
 
 class AliyunOssOutputStorage:
@@ -108,8 +117,32 @@ class AliyunOssOutputStorage:
             return f"{self.public_base_url}/{urllib.parse.quote(object_key, safe='/')}"
         return self._object_url(object_key)
 
-    def access_url(self, object_key: str) -> str:
-        return self._object_url(self.normalize_key(object_key))
+    def signed_get_url(self, object_key: str, expires_seconds: int) -> tuple[str, datetime]:
+        if (
+            not self.endpoint
+            or not self.bucket
+            or not self.access_key_id
+            or not self.access_key_secret
+        ):
+            raise OutputStorageError("OSS endpoint, bucket, access key id, and access key secret are required")
+
+        normalized_key = self.normalize_key(object_key)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_seconds)
+        expires = str(int(expires_at.timestamp()))
+        resource = f"/{self.bucket}/{normalized_key}"
+        string_to_sign = f"GET\n\n\n{expires}\n{resource}"
+        signature = base64.b64encode(
+            hmac.new(self.access_key_secret, string_to_sign.encode("utf-8"), hashlib.sha1).digest()
+        ).decode("ascii")
+        query = urllib.parse.urlencode(
+            {
+                "OSSAccessKeyId": self.access_key_id,
+                "Expires": expires,
+                "Signature": signature,
+            }
+        )
+        separator = "&" if "?" in self.public_url(normalized_key) else "?"
+        return f"{self.public_url(normalized_key)}{separator}{query}", expires_at
 
     def normalize_key(self, object_key: str) -> str:
         key = object_key.strip("/")

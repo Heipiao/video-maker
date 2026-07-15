@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from app.models.render import RenderJob, RenderJobStatus
 from app.schemas import CreateRenderJobRequest, RenderJobCallbackRequest, RenderJobHeartbeatRequest
 from app.services.eci_launcher import EciConfigError, EciLaunchError, EciLaunchRequest, EciLauncher
 from app.services.job_store import FileJobStore
+from app.services.oss_keys import render_manifest_object_key, render_output_object_key
 from app.services.output_storage import OutputStorageError
 from app.services.renderer import ManifestRenderer, RemotionRenderer
 from app.services.spec_store import FileSpecStore
@@ -24,6 +24,10 @@ class InvalidRenderCallbackError(Exception):
     pass
 
 
+class PlaybackUrlError(Exception):
+    pass
+
+
 class InvalidRenderModeError(Exception):
     pass
 
@@ -36,8 +40,7 @@ class RenderService:
         outputs_dir: Path,
         remotion_command: str | None = None,
         remotion_timeout_seconds: float = 300,
-        public_base_url: str = "http://127.0.0.1:8017",
-        render_callback_base_url: str | None = None,
+        public_base_url: str = "http://127.0.0.1:8000",
         output_storage=None,
         cleanup_local_output: bool = False,
         eci_launcher: EciLauncher | None = None,
@@ -50,7 +53,6 @@ class RenderService:
         self.remotion_command = remotion_command
         self.remotion_timeout_seconds = remotion_timeout_seconds
         self.public_base_url = public_base_url
-        self.render_callback_base_url = (render_callback_base_url or public_base_url).rstrip("/")
         self.output_storage = output_storage
         self.cleanup_local_output = cleanup_local_output
         self.eci_launcher = eci_launcher
@@ -59,7 +61,16 @@ class RenderService:
 
     def create_job(self, request: CreateRenderJobRequest) -> RenderJob:
         spec = self.spec_store.get(request.spec_id)
-        job = RenderJob(id=str(uuid4()), spec_id=spec.id, renderer=request.renderer)
+        job = RenderJob(
+            id=str(uuid4()),
+            spec_id=spec.id,
+            renderer=request.renderer,
+            project_id=request.project_id,
+            variant=request.variant,
+            watermark=request.watermark,
+            resolution=request.resolution,
+            entitlement_required=request.entitlement_required,
+        )
         self.job_store.save(job)
 
         if request.renderer != ManifestRenderer.name:
@@ -73,6 +84,7 @@ class RenderService:
         job.touch()
         self.job_store.save(job)
         job = ManifestRenderer(self.outputs_dir).render(job, spec)
+        job.manifest_url = self._manifest_api_url(job.id)
         # Manifest mode does not produce MP4; the job remains queued for a real worker.
         job.status = RenderJobStatus.queued
         job.touch()
@@ -126,6 +138,11 @@ class RenderService:
         if job.attempt_count >= max(job.max_attempts, self.eci_max_attempts):
             raise RemoteRenderError("Render job has reached max ECI attempts")
 
+        manifest_path = self.manifest_path(job.id)
+        if not manifest_path.exists():
+            ManifestRenderer(self.outputs_dir).render(job, spec)
+            job.manifest_url = self._manifest_api_url(job.id)
+
         job.renderer = "eci"
         job.status = RenderJobStatus.provisioning
         job.error = None
@@ -133,12 +150,8 @@ class RenderService:
         job.max_attempts = self.eci_max_attempts
         job.started_at = job.started_at or datetime.now(timezone.utc)
 
-        worker_spec = self._worker_spec(spec)
-        ManifestRenderer(self.outputs_dir).render(job, worker_spec)
-        manifest_path = self.manifest_path(job.id)
-
-        manifest_object_key = f"jobs/{job.id}/manifest.json"
-        output_object_key = f"jobs/{job.id}/output.mp4"
+        manifest_object_key = self._manifest_object_key(job)
+        output_object_key = self._output_object_key(job)
         try:
             manifest_url = self.output_storage.upload_bytes(
                 manifest_path.read_bytes(),
@@ -160,7 +173,7 @@ class RenderService:
 
         launch_request = EciLaunchRequest(
             job=job,
-            manifest_url=self._manifest_worker_url(job.id, manifest_url),
+            manifest_url=manifest_url,
             manifest_oss_key=job.manifest_oss_key,
             output_oss_key=job.output_oss_key,
             callback_url=self._callback_url(job.id),
@@ -223,35 +236,45 @@ class RenderService:
     def get_manifest(self, job_id: str) -> str:
         return self.manifest_path(job_id).read_text(encoding="utf-8")
 
+    def get_playback_url(self, job_id: str, expires_seconds: int) -> tuple[str, datetime]:
+        job = self.job_store.get(job_id)
+        if job.status != RenderJobStatus.ready:
+            raise PlaybackUrlError("Render job is not ready")
+
+        if self.output_storage is not None and job.output_oss_key and hasattr(
+            self.output_storage, "signed_get_url"
+        ):
+            try:
+                return self.output_storage.signed_get_url(job.output_oss_key, expires_seconds)
+            except OutputStorageError as exc:
+                raise PlaybackUrlError(str(exc)) from exc
+
+        if job.output_url and self.output_storage is not None and hasattr(
+            self.output_storage, "playback_url"
+        ):
+            return self.output_storage.playback_url(
+                job.output_url,
+                self.public_base_url,
+                expires_seconds,
+            )
+
+        if job.output_url:
+            expires_at = datetime.now(timezone.utc)
+            return job.output_url, expires_at
+
+        raise PlaybackUrlError("Render job has no output URL")
+
     def _callback_url(self, job_id: str) -> str:
-        return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/callback"
+        return f"{self.public_base_url.rstrip('/')}/api/v1/render-jobs/{job_id}/callback"
 
     def _heartbeat_url(self, job_id: str) -> str:
-        return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/heartbeat"
+        return f"{self.public_base_url.rstrip('/')}/api/v1/render-jobs/{job_id}/heartbeat"
 
-    def _manifest_worker_url(self, job_id: str, fallback_url: str) -> str:
-        if self.render_callback_base_url:
-            return f"{self.render_callback_base_url}/api/v1/render-jobs/{job_id}/manifest"
-        return fallback_url
+    def _manifest_api_url(self, job_id: str) -> str:
+        return f"{self.public_base_url.rstrip('/')}/api/v1/render-jobs/{job_id}/manifest"
 
-    def _worker_spec(self, spec):
-        worker_spec = spec.model_copy(deep=True)
-        worker_spec.assets = [
-            asset.__class__.model_validate(
-                {**asset.model_dump(mode="json"), "url": self._worker_asset_url(str(asset.url))}
-            )
-            for asset in worker_spec.assets
-        ]
-        return worker_spec
+    def _manifest_object_key(self, job: RenderJob) -> str:
+        return render_manifest_object_key(job)
 
-    def _worker_asset_url(self, asset_url: str) -> str:
-        if not self.public_base_url or not self.render_callback_base_url:
-            return asset_url
-        source = urlsplit(asset_url)
-        public = urlsplit(self.public_base_url)
-        target = urlsplit(self.render_callback_base_url)
-        if not source.netloc or not public.netloc or not target.netloc:
-            return asset_url
-        if source.netloc != public.netloc:
-            return asset_url
-        return urlunsplit((target.scheme, target.netloc, source.path, source.query, source.fragment))
+    def _output_object_key(self, job: RenderJob) -> str:
+        return render_output_object_key(job)

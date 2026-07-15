@@ -569,7 +569,7 @@
           </div>
           <label>
             URL
-            <input id="assetUrl" value="https://example.com/ceremony.jpg" />
+            <input id="assetUrl" value="" placeholder="Upload a file or paste a real media URL" />
           </label>
           <label>
             文字描述
@@ -993,7 +993,11 @@
       }
 
       async function uploadSelectedFileIfNeeded() {
-        if (!state.selectedFile) return $("assetUrl").value.trim();
+        if (!state.selectedFile) {
+          const url = $("assetUrl").value.trim();
+          if (!url) throw new Error("请先上传文件或填写真实素材 URL");
+          return url;
+        }
         const form = new FormData();
         form.append("file", state.selectedFile);
         const result = await api("/api/v1/uploads", {
@@ -1010,15 +1014,15 @@
         const type = $("assetType").value;
         if (type === "music") {
           $("assetTag").value = "romantic";
-          $("assetUrl").value = "https://example.com/music.mp3";
+          $("assetUrl").value = "";
           $("assetDescription").value = "Soft piano music suitable for a wedding opening";
         } else if (type === "video") {
           $("assetTag").value = "first_dance";
-          $("assetUrl").value = "https://example.com/first-dance.mp4";
+          $("assetUrl").value = "";
           $("assetDescription").value = "First dance clip";
         } else {
           $("assetTag").value = "ceremony";
-          $("assetUrl").value = "https://example.com/ceremony.jpg";
+          $("assetUrl").value = "";
           $("assetDescription").value = "The ceremony kiss";
         }
         $("assetAnalysis").value = JSON.stringify(defaultAnalysis(type), null, 2);

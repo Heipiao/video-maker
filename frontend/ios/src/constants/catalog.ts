@@ -7,6 +7,6 @@ export const videoTypes = [
 export const styles = ['nostalgic', 'modern editorial', 'garden romance', 'party recap'];
 
 export const priceTiers = [
-  {id: 'hd_1080p', label: 'HD Download', price: '$9.99'},
-  {id: 'wedding_pack', label: 'Wedding Pack', price: '$19.99'},
+  {id: 'single_export', label: 'Single Export', price: '$9.99'},
+  {id: 'export_pack', label: 'Wedding Export Pack', price: '$19.99'},
 ];

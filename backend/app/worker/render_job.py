@@ -90,8 +90,6 @@ def _render(manifest_path: Path, output_path: Path, job_id: str) -> None:
     )
     env = os.environ.copy()
     env["REMOTION_PUBLIC_BASE_URL"] = os.getenv("VIDEO_MAKER_PUBLIC_BASE_URL", "")
-    env["REMOTION_ASSET_REWRITE_FROM"] = os.getenv("VIDEO_MAKER_ASSET_REWRITE_FROM", "")
-    env["REMOTION_ASSET_REWRITE_TO"] = os.getenv("VIDEO_MAKER_ASSET_REWRITE_TO", "")
     completed = subprocess.run(
         shlex.split(command),
         cwd=Path.cwd(),
@@ -102,9 +100,8 @@ def _render(manifest_path: Path, output_path: Path, job_id: str) -> None:
         env=env,
     )
     if completed.returncode != 0:
-        output = "\n".join(part for part in [completed.stderr, completed.stdout] if part).strip()
-        detail = output[:8000] if output else f"Remotion command exited {completed.returncode}"
-        raise RuntimeError(f"Remotion command failed: {command}\n{detail}")
+        stderr = (completed.stderr or completed.stdout or "").strip()
+        raise RuntimeError(stderr[:2000] or f"Remotion command exited {completed.returncode}")
     if not output_path.exists() or output_path.stat().st_size <= 0:
         raise RuntimeError("Remotion did not create a non-empty MP4 output")
 
@@ -125,13 +122,7 @@ def _post_json(url: str | None, payload: dict) -> None:
     if not url:
         return
     body = json.dumps(payload).encode("utf-8")
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 Chrome/126 Safari/537.36"
-        ),
-    }
+    headers = {"Content-Type": "application/json"}
     token = os.getenv("VIDEO_MAKER_RENDER_CALLBACK_TOKEN")
     if token:
         headers["X-Render-Callback-Token"] = token

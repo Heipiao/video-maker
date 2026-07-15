@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, HttpUrl
@@ -5,9 +6,10 @@ from pydantic import BaseModel, Field, HttpUrl
 from app.models.asset import Asset, AssetAnalysis, AssetAnalysisStatus, AssetType
 from app.models.agent import AgentRun, AgentSession
 from app.models.catalog import Template
-from app.models.render import RenderJob, RenderJobStatus
+from app.models.project import ProjectAsset, VideoProject
+from app.models.render import RenderJob, RenderJobStatus, RenderVariant
 from app.models.spec import AspectRatio, WeddingVideoSpec
-
+from app.models.wedding_project import WeddingAssetSource, WeddingPackageType
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -29,8 +31,21 @@ class CreateAssetRequest(BaseModel):
     analysis: AssetAnalysis = Field(default_factory=AssetAnalysis)
 
 
+class UpdateAssetRequest(BaseModel):
+    tag: str | None = Field(default=None, min_length=1)
+    description: str | None = None
+    caption: str | None = None
+    metadata: dict[str, Any] | None = None
+    analysis_status: AssetAnalysisStatus | None = None
+    analysis: AssetAnalysis | None = None
+
+
 class AssetResponse(BaseModel):
     asset: Asset
+
+
+class AssetListResponse(BaseModel):
+    assets: list[Asset]
 
 
 class UploadResponse(BaseModel):
@@ -39,6 +54,7 @@ class UploadResponse(BaseModel):
     content_type: str
     size_bytes: int
     suggested_asset_type: AssetType
+    oss_key: str | None = None
 
 
 class GenerateVideoSpecRequest(BaseModel):
@@ -46,6 +62,7 @@ class GenerateVideoSpecRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     asset_ids: list[str] = Field(min_length=1, max_length=200)
     aspect_ratio: AspectRatio = AspectRatio.landscape
+    style_preset_id: str = Field(default="nostalgia_editorial", min_length=1, max_length=64)
 
 
 class SaveVideoSpecRequest(BaseModel):
@@ -59,10 +76,68 @@ class VideoSpecResponse(BaseModel):
 class CreateRenderJobRequest(BaseModel):
     spec_id: str = Field(min_length=1)
     renderer: str = Field(default="manifest", min_length=1)
+    project_id: str | None = None
+    variant: RenderVariant = RenderVariant.final
+    watermark: bool = False
+    resolution: str | None = None
+    entitlement_required: bool = False
 
 
 class RenderJobResponse(BaseModel):
     job: RenderJob
+
+
+class RenderJobPlaybackUrlResponse(BaseModel):
+    url: str
+    expires_at: datetime
+
+
+class CreateVideoProjectRequest(BaseModel):
+    spec_id: str | None = Field(default=None, min_length=1)
+    owner_id: str | None = None
+    couple_names: str = Field(default="Our Wedding", min_length=1, max_length=160)
+    wedding_date: str | None = None
+    location: str | None = None
+    package_type: WeddingPackageType = WeddingPackageType.guest_cam_recap
+
+
+class VideoProjectResponse(BaseModel):
+    project: VideoProject
+
+
+class UpdateVideoProjectRequest(BaseModel):
+    spec_id: str | None = Field(default=None, min_length=1)
+    couple_names: str | None = Field(default=None, min_length=1, max_length=160)
+    wedding_date: str | None = None
+    location: str | None = None
+    package_type: WeddingPackageType | None = None
+
+
+class ProjectRenderJobResponse(BaseModel):
+    project: VideoProject
+    job: RenderJob
+
+
+class ModifyVideoProjectRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=1000)
+
+
+class ModifyVideoProjectResponse(BaseModel):
+    project: VideoProject
+    spec: WeddingVideoSpec
+    job: RenderJob
+
+
+class AppleIapVerifyRequest(BaseModel):
+    project_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1, pattern="^(com\\.aigcteacher\\.vowframeapp\\.singleexport|com\\.aigcteacher\\.vowframeapp\\.exportpack)$")
+    transaction_id: str = Field(min_length=1)
+    original_transaction_id: str = Field(min_length=1)
+
+
+class AppleIapRestoreRequest(BaseModel):
+    project_id: str = Field(min_length=1)
+    original_transaction_id: str = Field(min_length=1)
 
 
 class RenderJobCallbackRequest(BaseModel):
@@ -118,3 +193,18 @@ class SendAgentMessageRequest(BaseModel):
 class AgentRunResponse(BaseModel):
     session: AgentSession
     run: AgentRun
+
+
+class LinkProjectAssetRequest(BaseModel):
+    asset_id: str = Field(min_length=1)
+    source: WeddingAssetSource = WeddingAssetSource.owner_upload
+    guest_name: str | None = Field(default=None, max_length=120)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ProjectAssetResponse(BaseModel):
+    item: ProjectAsset
+
+
+class ProjectAssetListResponse(BaseModel):
+    items: list[ProjectAsset]

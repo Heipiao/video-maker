@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.models.render import RenderJob
 from app.models.spec import WeddingVideoSpec
+from app.services.oss_keys import render_output_object_key
 from app.services.output_storage import LocalOutputStorage, OutputStorageError
 
 
@@ -30,6 +31,18 @@ class ManifestRenderer(Renderer):
         manifest = {
             "job_id": job.id,
             "spec": spec.model_dump(mode="json"),
+            "render": {
+                "project_id": job.project_id,
+                "variant": job.variant,
+                "watermark": {
+                    "enabled": job.watermark,
+                    "text": "VowFrame",
+                    "subtext": "PREVIEW",
+                    "opacity": 0.64,
+                },
+                "resolution": resolution_from_string(job.resolution),
+                "entitlement_required": job.entitlement_required,
+            },
             "renderer": {
                 "name": self.name,
                 "status": "manifest_only",
@@ -53,7 +66,7 @@ class RemotionRenderer(Renderer):
         outputs_dir: Path,
         command: str | None,
         timeout_seconds: float = 300,
-        public_base_url: str = "http://127.0.0.1:8017",
+        public_base_url: str = "http://127.0.0.1:8000",
         output_storage=None,
         cleanup_local_output: bool = False,
     ) -> None:
@@ -109,9 +122,11 @@ class RemotionRenderer(Renderer):
             raise RemotionRendererError(f"Remotion command created an empty output file: {output_path}")
 
         job.renderer = self.name
-        object_key = f"{job.id}.mp4"
+        object_key = render_output_object_key(job)
         try:
             job.output_url = self.output_storage.upload(output_path, object_key)
+            if hasattr(self.output_storage, "normalize_key"):
+                job.output_oss_key = self.output_storage.normalize_key(object_key)
         except OutputStorageError as exc:
             raise RemotionRendererError(str(exc)) from exc
         if self.cleanup_local_output and job.output_url and not job.output_url.startswith("/outputs/"):
@@ -121,3 +136,19 @@ class RemotionRenderer(Renderer):
 
 class RemotionRendererError(Exception):
     pass
+
+
+def resolution_from_string(value: str | None) -> dict[str, int] | None:
+    if not value:
+        return None
+    width_text, separator, height_text = value.lower().partition("x")
+    if separator != "x":
+        return None
+    try:
+        width = int(width_text)
+        height = int(height_text)
+    except ValueError:
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return {"width": width, "height": height}
