@@ -75,6 +75,8 @@ def list_demo_assets() -> list[dict[str, Any]]:
     root = project_root()
     image_plan_path = root / "demo/data/image_generation_plan.demo.json"
     music_manifest_path = root / "demo/assets/music_mixkit/manifest.json"
+    if not music_manifest_path.exists():
+        music_manifest_path = Path(__file__).resolve().parents[1] / "data/music_mixkit_manifest.json"
 
     assets: list[dict[str, Any]] = []
     if image_plan_path.exists():
@@ -107,11 +109,14 @@ def list_demo_assets() -> list[dict[str, Any]]:
         music_manifest = json.loads(music_manifest_path.read_text(encoding="utf-8"))
         for track in music_manifest.get("tracks", []):
             local_path = root / track["local_path"]
+            url = track.get("asset_url") or ""
+            if local_path.exists():
+                url = _demo_url(local_path)
             assets.append(
                 {
                     "id": track["id"],
                     "type": "music",
-                    "url": _demo_url(local_path),
+                    "url": url,
                     "tag": track["tags"][0] if track.get("tags") else "music",
                     "tags": track.get("tags", []),
                     "title": track.get("title"),
